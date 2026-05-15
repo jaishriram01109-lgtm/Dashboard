@@ -28,6 +28,9 @@ const AdvancedChart = dynamic(() => import("@/components/AdvancedChart"), { ssr:
 const NewsSentiment = dynamic(() => import("@/components/NewsSentiment"), { ssr: false });
 const FnOAnalytics = dynamic(() => import("@/components/FnOAnalytics"), { ssr: false });
 const StockScreener = dynamic(() => import("@/components/StockScreener"), { ssr: false });
+const GlobalMarkets = dynamic(() => import("@/components/GlobalMarkets"), { ssr: false });
+const CorporateActions = dynamic(() => import("@/components/CorporateActions"), { ssr: false });
+const RiskDashboard = dynamic(() => import("@/components/RiskDashboard"), { ssr: false });
 
 function LoadingSpinner() {
   return (
@@ -60,6 +63,9 @@ const SECTIONS: Record<string, React.ComponentType> = {
   news: NewsSentiment,
   fno: FnOAnalytics,
   screener: StockScreener,
+  global: GlobalMarkets,
+  corporate: CorporateActions,
+  risk: RiskDashboard,
 };
 
 export default function Dashboard() {

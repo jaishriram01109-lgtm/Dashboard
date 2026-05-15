@@ -2,6 +2,7 @@
 import {
   Globe, BarChart3, Search, Brain, Zap, TrendingUp,
   Bell, PieChart, Database, Star, Activity, Layers, Target,
+  ShieldAlert, CalendarDays, Newspaper,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -23,9 +24,12 @@ const navItems = [
   { id: "ipo", label: "IPO Tracker", icon: Star, badge: "GMP", group: "tools" },
   { id: "portfolio", label: "AI Portfolio", icon: Layers, badge: null, group: "tools" },
   { id: "watchlist", label: "Watchlist", icon: Star, badge: null, group: "tools" },
-  { id: "news", label: "News & Sentiment", icon: Globe, badge: "LIVE", group: "tools" },
+  { id: "news", label: "News & Sentiment", icon: Newspaper, badge: "LIVE", group: "tools" },
   { id: "fno", label: "F&O Analytics", icon: Activity, badge: null, group: "tools" },
   { id: "screener", label: "Stock Screener", icon: Search, badge: null, group: "tools" },
+  { id: "global", label: "Global Markets", icon: Globe, badge: null, group: "tools" },
+  { id: "corporate", label: "Corp. Actions", icon: CalendarDays, badge: null, group: "tools" },
+  { id: "risk", label: "Risk Dashboard", icon: ShieldAlert, badge: null, group: "tools" },
 ];
 
 interface SidebarProps {
