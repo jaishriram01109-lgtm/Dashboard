@@ -43,6 +43,9 @@ const PortfolioRebalancer = dynamic(() => import("@/components/PortfolioRebalanc
 const EarningsAnalyzer = dynamic(() => import("@/components/EarningsAnalyzer"), { ssr: false });
 const QuantFactorModel = dynamic(() => import("@/components/QuantFactorModel"), { ssr: false });
 const IndexAnalytics = dynamic(() => import("@/components/IndexAnalytics"), { ssr: false });
+const MarketBreadth = dynamic(() => import("@/components/MarketBreadth"), { ssr: false });
+const VolatilitySurface = dynamic(() => import("@/components/VolatilitySurface"), { ssr: false });
+const CapitalFlowMonitor = dynamic(() => import("@/components/CapitalFlowMonitor"), { ssr: false });
 
 function LoadingSpinner() {
   return (
@@ -90,6 +93,9 @@ const SECTIONS: Record<string, React.ComponentType> = {
   earnings: EarningsAnalyzer,
   quant: QuantFactorModel,
   index: IndexAnalytics,
+  breadth: MarketBreadth,
+  volatility: VolatilitySurface,
+  flows: CapitalFlowMonitor,
 };
 
 export default function Dashboard() {
