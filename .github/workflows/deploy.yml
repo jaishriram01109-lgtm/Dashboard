@@ -9,6 +9,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  actions: write
 
 concurrency:
   group: pages
@@ -19,6 +20,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Enable GitHub Pages
+        run: |
+          gh api repos/${{ github.repository }}/pages \
+            -X POST \
+            -f build_type=workflow \
+            --silent 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v4
         with:
@@ -33,6 +43,8 @@ jobs:
           GITHUB_PAGES: "true"
           NEXT_PUBLIC_API_URL: ""
           NEXT_PUBLIC_WS_URL: ""
+
+      - uses: actions/configure-pages@v4
 
       - uses: actions/upload-pages-artifact@v3
         with:
