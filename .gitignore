@@ -38,3 +38,6 @@ Thumbs.db
 # Logs
 logs/
 *.log
+
+# Claude Code internal session data
+.claude/
