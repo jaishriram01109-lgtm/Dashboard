@@ -40,6 +40,9 @@ const TradeJournal = dynamic(() => import("@/components/TradeJournal"), { ssr: f
 const PeerComparison = dynamic(() => import("@/components/PeerComparison"), { ssr: false });
 const DividendTracker = dynamic(() => import("@/components/DividendTracker"), { ssr: false });
 const PortfolioRebalancer = dynamic(() => import("@/components/PortfolioRebalancer"), { ssr: false });
+const EarningsAnalyzer = dynamic(() => import("@/components/EarningsAnalyzer"), { ssr: false });
+const QuantFactorModel = dynamic(() => import("@/components/QuantFactorModel"), { ssr: false });
+const IndexAnalytics = dynamic(() => import("@/components/IndexAnalytics"), { ssr: false });
 
 function LoadingSpinner() {
   return (
@@ -84,6 +87,9 @@ const SECTIONS: Record<string, React.ComponentType> = {
   peer: PeerComparison,
   dividends: DividendTracker,
   rebalancer: PortfolioRebalancer,
+  earnings: EarningsAnalyzer,
+  quant: QuantFactorModel,
+  index: IndexAnalytics,
 };
 
 export default function Dashboard() {

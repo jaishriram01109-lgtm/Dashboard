@@ -4,6 +4,7 @@ import {
   Bell, PieChart, Database, Star, Activity, Layers, Target,
   ShieldAlert, CalendarDays, Newspaper, Crosshair,
   LayoutGrid, FlaskConical, BookOpen, GitCompare, DollarSign, RefreshCw,
+  BarChart2, Calculator, Gauge,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -40,6 +41,9 @@ const navItems = [
   { id: "peer", label: "Peer Comparison", icon: GitCompare, badge: null, group: "tools" },
   { id: "dividends", label: "Dividend Tracker", icon: DollarSign, badge: null, group: "tools" },
   { id: "rebalancer", label: "Rebalancer", icon: RefreshCw, badge: null, group: "tools" },
+  { id: "earnings", label: "Earnings Analyzer", icon: BarChart2, badge: "NEW", group: "market" },
+  { id: "quant", label: "Quant Factor Model", icon: Calculator, badge: "AI", group: "signals" },
+  { id: "index", label: "Index Analytics", icon: Gauge, badge: null, group: "market" },
 ];
 
 interface SidebarProps {
