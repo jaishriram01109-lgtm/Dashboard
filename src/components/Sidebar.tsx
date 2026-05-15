@@ -3,6 +3,7 @@ import {
   Globe, BarChart3, Search, Brain, Zap, TrendingUp,
   Bell, PieChart, Database, Star, Activity, Layers, Target,
   ShieldAlert, CalendarDays, Newspaper, Crosshair,
+  LayoutGrid, FlaskConical, BookOpen,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -33,6 +34,9 @@ const navItems = [
   { id: "mf", label: "Mutual Funds", icon: Layers, badge: null, group: "tools" },
   { id: "patterns", label: "Chart Patterns", icon: Crosshair, badge: "AI", group: "signals" },
   { id: "derivatives", label: "Derivatives", icon: Zap, badge: null, group: "signals" },
+  { id: "heatmap", label: "Market Heatmap", icon: LayoutGrid, badge: null, group: "market" },
+  { id: "backtest", label: "Backtest Engine", icon: FlaskConical, badge: "NEW", group: "tools" },
+  { id: "journal", label: "Trade Journal", icon: BookOpen, badge: null, group: "tools" },
 ];
 
 interface SidebarProps {

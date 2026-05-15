@@ -34,6 +34,9 @@ const RiskDashboard = dynamic(() => import("@/components/RiskDashboard"), { ssr:
 const MutualFunds = dynamic(() => import("@/components/MutualFunds"), { ssr: false });
 const TechnicalPatterns = dynamic(() => import("@/components/TechnicalPatterns"), { ssr: false });
 const DerivativesDashboard = dynamic(() => import("@/components/DerivativesDashboard"), { ssr: false });
+const MarketHeatmap = dynamic(() => import("@/components/MarketHeatmap"), { ssr: false });
+const BacktestEngine = dynamic(() => import("@/components/BacktestEngine"), { ssr: false });
+const TradeJournal = dynamic(() => import("@/components/TradeJournal"), { ssr: false });
 
 function LoadingSpinner() {
   return (
@@ -72,6 +75,9 @@ const SECTIONS: Record<string, React.ComponentType> = {
   mf: MutualFunds,
   patterns: TechnicalPatterns,
   derivatives: DerivativesDashboard,
+  heatmap: MarketHeatmap,
+  backtest: BacktestEngine,
+  journal: TradeJournal,
 };
 
 export default function Dashboard() {
