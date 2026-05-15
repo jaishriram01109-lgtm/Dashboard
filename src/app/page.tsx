@@ -55,6 +55,12 @@ const ETFAnalytics = dynamic(() => import("@/components/ETFAnalytics"), { ssr: f
 const MacroScorecard = dynamic(() => import("@/components/MacroScorecard"), { ssr: false });
 const CurrencyAnalytics = dynamic(() => import("@/components/CurrencyAnalytics"), { ssr: false });
 const FIIDerivativeStats = dynamic(() => import("@/components/FIIDerivativeStats"), { ssr: false });
+const PromoterActivity = dynamic(() => import("@/components/PromoterActivity"), { ssr: false });
+const DeliveryAnalysis = dynamic(() => import("@/components/DeliveryAnalysis"), { ssr: false });
+const HighLowScanner = dynamic(() => import("@/components/HighLowScanner"), { ssr: false });
+const InsiderRegistry = dynamic(() => import("@/components/InsiderRegistry"), { ssr: false });
+const TaxOptimizer = dynamic(() => import("@/components/TaxOptimizer"), { ssr: false });
+const GoalPlanner = dynamic(() => import("@/components/GoalPlanner"), { ssr: false });
 
 function LoadingSpinner() {
   return (
@@ -113,7 +119,13 @@ const SECTIONS: Record<string, React.ComponentType> = {
   etf: ETFAnalytics,
   macroreport: MacroScorecard,
   currency: CurrencyAnalytics,
-  fiideriv: FIIDerivativeStats,
+  fiideriv:  FIIDerivativeStats,
+  promoter:  PromoterActivity,
+  delivery:  DeliveryAnalysis,
+  highlows:  HighLowScanner,
+  insider:   InsiderRegistry,
+  tax:       TaxOptimizer,
+  goals:     GoalPlanner,
 };
 
 export default function Dashboard() {

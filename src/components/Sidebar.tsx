@@ -7,6 +7,7 @@ import {
   BarChart2, Calculator, Gauge, Waves, Flame, ArrowLeftRight,
   Layers2, Scale, Smile,
   Flame as FlameIcon, Coins, Landmark, BarChart4, Globe2, FileBarChart,
+  UserCheck, Package, ArrowUpCircle, Eye, Receipt, Flag,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -57,7 +58,13 @@ const navItems = [
   { id: "etf", label: "ETF Analytics", icon: BarChart4, badge: null, group: "tools" },
   { id: "macroreport", label: "Macro Scorecard", icon: FileBarChart, badge: null, group: "market" },
   { id: "currency", label: "Currency", icon: Globe2, badge: null, group: "market" },
-  { id: "fiideriv", label: "FII Derivatives", icon: FlameIcon, badge: "SEBI", group: "signals" },
+  { id: "fiideriv",  label: "FII Derivatives",  icon: FlameIcon,      badge: "SEBI", group: "signals" },
+  { id: "promoter",  label: "Promoter Activity",icon: UserCheck,      badge: null,   group: "market"  },
+  { id: "delivery",  label: "Delivery Analysis",icon: Package,        badge: null,   group: "signals" },
+  { id: "highlows",  label: "52W High/Low",     icon: ArrowUpCircle,  badge: null,   group: "signals" },
+  { id: "insider",   label: "Insider Registry", icon: Eye,            badge: "SEBI", group: "market"  },
+  { id: "tax",       label: "Tax Optimizer",    icon: Receipt,        badge: null,   group: "tools"   },
+  { id: "goals",     label: "Goal Planner",     icon: Flag,           badge: null,   group: "tools"   },
 ];
 
 interface SidebarProps {
