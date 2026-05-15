@@ -23,6 +23,9 @@ const navItems = [
   { id: "ipo", label: "IPO Tracker", icon: Star, badge: "GMP", group: "tools" },
   { id: "portfolio", label: "AI Portfolio", icon: Layers, badge: null, group: "tools" },
   { id: "watchlist", label: "Watchlist", icon: Star, badge: null, group: "tools" },
+  { id: "news", label: "News & Sentiment", icon: Globe, badge: "LIVE", group: "tools" },
+  { id: "fno", label: "F&O Analytics", icon: Activity, badge: null, group: "tools" },
+  { id: "screener", label: "Stock Screener", icon: Search, badge: null, group: "tools" },
 ];
 
 interface SidebarProps {
@@ -68,6 +71,7 @@ export default function Sidebar({ active, onChange }: SidebarProps) {
                         item.badge === "AI" || item.badge === "NEW" ? "bg-signal-accumulate/20 text-signal-accumulate" :
                         item.badge === "GMP" ? "bg-gold-500/20 text-gold-500" :
                         item.badge === "OI" ? "bg-signal-accumulate/20 text-signal-accumulate" :
+                        item.badge === "LIVE" ? "bg-signal-bull/20 text-signal-bull" :
                         "bg-maroon-800/30 text-maroon-400"
                       )}>
                         {item.badge}

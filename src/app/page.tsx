@@ -25,6 +25,9 @@ const BulkDeals = dynamic(() => import("@/components/BulkDeals"), { ssr: false }
 const EconomicCalendar = dynamic(() => import("@/components/EconomicCalendar"), { ssr: false });
 const IPOTracker = dynamic(() => import("@/components/IPOTracker"), { ssr: false });
 const AdvancedChart = dynamic(() => import("@/components/AdvancedChart"), { ssr: false });
+const NewsSentiment = dynamic(() => import("@/components/NewsSentiment"), { ssr: false });
+const FnOAnalytics = dynamic(() => import("@/components/FnOAnalytics"), { ssr: false });
+const StockScreener = dynamic(() => import("@/components/StockScreener"), { ssr: false });
 
 function LoadingSpinner() {
   return (
@@ -54,6 +57,9 @@ const SECTIONS: Record<string, React.ComponentType> = {
   "economic-calendar": EconomicCalendar,
   ipo: IPOTracker,
   "advanced-chart": AdvancedChart,
+  news: NewsSentiment,
+  fno: FnOAnalytics,
+  screener: StockScreener,
 };
 
 export default function Dashboard() {
