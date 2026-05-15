@@ -6,6 +6,7 @@ import {
   LayoutGrid, FlaskConical, BookOpen, GitCompare, DollarSign, RefreshCw,
   BarChart2, Calculator, Gauge, Waves, Flame, ArrowLeftRight,
   Layers2, Scale, Smile,
+  Flame as FlameIcon, Coins, Landmark, BarChart4, Globe2, FileBarChart,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -51,6 +52,12 @@ const navItems = [
   { id: "optionstrategy", label: "Option Strategy", icon: Layers2, badge: "NEW", group: "signals" },
   { id: "sizing", label: "Position Sizing", icon: Scale, badge: null, group: "tools" },
   { id: "sentiment", label: "Sentiment", icon: Smile, badge: "AI", group: "signals" },
+  { id: "commodity", label: "Commodities", icon: Coins, badge: null, group: "market" },
+  { id: "bonds", label: "Bond Market", icon: Landmark, badge: null, group: "market" },
+  { id: "etf", label: "ETF Analytics", icon: BarChart4, badge: null, group: "tools" },
+  { id: "macroreport", label: "Macro Scorecard", icon: FileBarChart, badge: null, group: "market" },
+  { id: "currency", label: "Currency", icon: Globe2, badge: null, group: "market" },
+  { id: "fiideriv", label: "FII Derivatives", icon: FlameIcon, badge: "SEBI", group: "signals" },
 ];
 
 interface SidebarProps {

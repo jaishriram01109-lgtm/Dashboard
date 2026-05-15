@@ -49,6 +49,12 @@ const CapitalFlowMonitor = dynamic(() => import("@/components/CapitalFlowMonitor
 const OptionStrategyBuilder = dynamic(() => import("@/components/OptionStrategyBuilder"), { ssr: false });
 const PositionSizing = dynamic(() => import("@/components/PositionSizing"), { ssr: false });
 const SentimentDashboard = dynamic(() => import("@/components/SentimentDashboard"), { ssr: false });
+const CommodityDashboard = dynamic(() => import("@/components/CommodityDashboard"), { ssr: false });
+const BondMarket = dynamic(() => import("@/components/BondMarket"), { ssr: false });
+const ETFAnalytics = dynamic(() => import("@/components/ETFAnalytics"), { ssr: false });
+const MacroScorecard = dynamic(() => import("@/components/MacroScorecard"), { ssr: false });
+const CurrencyAnalytics = dynamic(() => import("@/components/CurrencyAnalytics"), { ssr: false });
+const FIIDerivativeStats = dynamic(() => import("@/components/FIIDerivativeStats"), { ssr: false });
 
 function LoadingSpinner() {
   return (
@@ -102,6 +108,12 @@ const SECTIONS: Record<string, React.ComponentType> = {
   optionstrategy: OptionStrategyBuilder,
   sizing: PositionSizing,
   sentiment: SentimentDashboard,
+  commodity: CommodityDashboard,
+  bonds: BondMarket,
+  etf: ETFAnalytics,
+  macroreport: MacroScorecard,
+  currency: CurrencyAnalytics,
+  fiideriv: FIIDerivativeStats,
 };
 
 export default function Dashboard() {
