@@ -61,6 +61,7 @@ const HighLowScanner = dynamic(() => import("@/components/HighLowScanner"), { ss
 const InsiderRegistry = dynamic(() => import("@/components/InsiderRegistry"), { ssr: false });
 const TaxOptimizer = dynamic(() => import("@/components/TaxOptimizer"), { ssr: false });
 const GoalPlanner = dynamic(() => import("@/components/GoalPlanner"), { ssr: false });
+const DashboardHome = dynamic(() => import("@/components/DashboardHome"), { ssr: false });
 
 function LoadingSpinner() {
   return (
@@ -129,7 +130,7 @@ const SECTIONS: Record<string, React.ComponentType> = {
 };
 
 export default function Dashboard() {
-  const [activeSection, setActiveSection] = useState("macro");
+  const [activeSection, setActiveSection] = useState("home");
   const [alerts, setAlerts] = useState(alertData);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -181,7 +182,9 @@ export default function Dashboard() {
 
           <div className="p-4 md:p-6 max-w-screen-2xl mx-auto">
             {Section ? (
-              <Section />
+              activeSection === "home"
+                ? <DashboardHome onNavigate={(id) => setActiveSection(id)} />
+                : <Section />
             ) : (
               <LoadingSpinner />
             )}
