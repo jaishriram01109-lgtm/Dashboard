@@ -1,0 +1,111 @@
+"use client";
+import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
+import Header from "@/components/Header";
+import MarketTicker from "@/components/MarketTicker";
+import Sidebar from "@/components/Sidebar";
+import { alertData } from "@/lib/mockData";
+import { cn } from "@/lib/utils";
+import { Menu, X } from "lucide-react";
+
+// Lazy load heavy section components
+const MacroIntelligence = dynamic(() => import("@/components/MacroIntelligence"), { ssr: false });
+const SectorRotation = dynamic(() => import("@/components/SectorRotation"), { ssr: false });
+const StockIntelligence = dynamic(() => import("@/components/StockIntelligence"), { ssr: false });
+const SmartMoneyAnalysis = dynamic(() => import("@/components/SmartMoneyAnalysis"), { ssr: false });
+const TradeOpportunities = dynamic(() => import("@/components/TradeOpportunities"), { ssr: false });
+const AIPrediction = dynamic(() => import("@/components/AIPrediction"), { ssr: false });
+const AlertSystem = dynamic(() => import("@/components/AlertSystem"), { ssr: false });
+const Visualizations = dynamic(() => import("@/components/Visualizations"), { ssr: false });
+const MomentumScanner = dynamic(() => import("@/components/MomentumScanner"), { ssr: false });
+const AIPortfolio = dynamic(() => import("@/components/AIPortfolio"), { ssr: false });
+const Watchlist = dynamic(() => import("@/components/Watchlist"), { ssr: false });
+
+function LoadingSpinner() {
+  return (
+    <div className="flex items-center justify-center h-64">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-2 border-maroon-700 border-t-maroon-300 rounded-full animate-spin" />
+        <span className="text-xs text-ivory-600 font-mono">Loading intelligence...</span>
+      </div>
+    </div>
+  );
+}
+
+const SECTIONS: Record<string, React.ComponentType> = {
+  macro: MacroIntelligence,
+  sectors: SectorRotation,
+  stocks: StockIntelligence,
+  "smart-money": SmartMoneyAnalysis,
+  trades: TradeOpportunities,
+  "ai-predict": AIPrediction,
+  alerts: AlertSystem,
+  charts: Visualizations,
+  scanner: MomentumScanner,
+  portfolio: AIPortfolio,
+  watchlist: Watchlist,
+};
+
+export default function Dashboard() {
+  const [activeSection, setActiveSection] = useState("macro");
+  const [alerts, setAlerts] = useState(alertData);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const unreadAlerts = alerts.filter(a => !a.read).length;
+
+  const Section = SECTIONS[activeSection];
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      {/* Ticker */}
+      <MarketTicker />
+
+      {/* Header */}
+      <Header
+        unreadCount={unreadAlerts}
+        onAlertClick={() => setActiveSection("alerts")}
+      />
+
+      {/* Main layout */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Mobile sidebar overlay */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* Sidebar — desktop always visible, mobile overlay */}
+        <div className={cn(
+          "fixed lg:relative inset-y-0 left-0 z-50 lg:z-auto transition-transform lg:translate-x-0",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        )}>
+          <Sidebar
+            active={activeSection}
+            onChange={(id) => { setActiveSection(id); setSidebarOpen(false); }}
+          />
+        </div>
+
+        {/* Content area */}
+        <main className="flex-1 overflow-y-auto relative">
+          {/* Mobile hamburger */}
+          <button
+            className="lg:hidden fixed bottom-4 left-4 z-50 w-10 h-10 bg-maroon-800 rounded-full flex items-center justify-center shadow-glow-maroon"
+            onClick={() => setSidebarOpen(o => !o)}
+          >
+            {sidebarOpen ? <X className="w-5 h-5 text-ivory-100" /> : <Menu className="w-5 h-5 text-ivory-100" />}
+          </button>
+
+          <div className="p-4 md:p-6 max-w-screen-2xl mx-auto">
+            {Section ? (
+              <Section />
+            ) : (
+              <LoadingSpinner />
+            )}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}
