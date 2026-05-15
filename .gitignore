@@ -39,5 +39,9 @@ Thumbs.db
 logs/
 *.log
 
+# TypeScript build cache
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
 # Claude Code internal session data
 .claude/
