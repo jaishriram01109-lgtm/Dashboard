@@ -5,6 +5,7 @@ import {
   ShieldAlert, CalendarDays, Newspaper, Crosshair,
   LayoutGrid, FlaskConical, BookOpen, GitCompare, DollarSign, RefreshCw,
   BarChart2, Calculator, Gauge, Waves, Flame, ArrowLeftRight,
+  Layers2, Scale, Smile,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -47,6 +48,9 @@ const navItems = [
   { id: "breadth", label: "Market Breadth", icon: Waves, badge: null, group: "market" },
   { id: "volatility", label: "Volatility Surface", icon: Flame, badge: null, group: "signals" },
   { id: "flows", label: "Capital Flows", icon: ArrowLeftRight, badge: "LIVE", group: "market" },
+  { id: "optionstrategy", label: "Option Strategy", icon: Layers2, badge: "NEW", group: "signals" },
+  { id: "sizing", label: "Position Sizing", icon: Scale, badge: null, group: "tools" },
+  { id: "sentiment", label: "Sentiment", icon: Smile, badge: "AI", group: "signals" },
 ];
 
 interface SidebarProps {

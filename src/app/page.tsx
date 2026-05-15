@@ -46,6 +46,9 @@ const IndexAnalytics = dynamic(() => import("@/components/IndexAnalytics"), { ss
 const MarketBreadth = dynamic(() => import("@/components/MarketBreadth"), { ssr: false });
 const VolatilitySurface = dynamic(() => import("@/components/VolatilitySurface"), { ssr: false });
 const CapitalFlowMonitor = dynamic(() => import("@/components/CapitalFlowMonitor"), { ssr: false });
+const OptionStrategyBuilder = dynamic(() => import("@/components/OptionStrategyBuilder"), { ssr: false });
+const PositionSizing = dynamic(() => import("@/components/PositionSizing"), { ssr: false });
+const SentimentDashboard = dynamic(() => import("@/components/SentimentDashboard"), { ssr: false });
 
 function LoadingSpinner() {
   return (
@@ -96,6 +99,9 @@ const SECTIONS: Record<string, React.ComponentType> = {
   breadth: MarketBreadth,
   volatility: VolatilitySurface,
   flows: CapitalFlowMonitor,
+  optionstrategy: OptionStrategyBuilder,
+  sizing: PositionSizing,
+  sentiment: SentimentDashboard,
 };
 
 export default function Dashboard() {
