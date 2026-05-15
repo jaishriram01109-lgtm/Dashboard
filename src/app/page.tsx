@@ -8,7 +8,7 @@ import { alertData } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 import { Menu, X } from "lucide-react";
 
-// Lazy load heavy section components
+// Lazy load all section components
 const MacroIntelligence = dynamic(() => import("@/components/MacroIntelligence"), { ssr: false });
 const SectorRotation = dynamic(() => import("@/components/SectorRotation"), { ssr: false });
 const StockIntelligence = dynamic(() => import("@/components/StockIntelligence"), { ssr: false });
@@ -20,6 +20,11 @@ const Visualizations = dynamic(() => import("@/components/Visualizations"), { ss
 const MomentumScanner = dynamic(() => import("@/components/MomentumScanner"), { ssr: false });
 const AIPortfolio = dynamic(() => import("@/components/AIPortfolio"), { ssr: false });
 const Watchlist = dynamic(() => import("@/components/Watchlist"), { ssr: false });
+const OptionsChain = dynamic(() => import("@/components/OptionsChain"), { ssr: false });
+const BulkDeals = dynamic(() => import("@/components/BulkDeals"), { ssr: false });
+const EconomicCalendar = dynamic(() => import("@/components/EconomicCalendar"), { ssr: false });
+const IPOTracker = dynamic(() => import("@/components/IPOTracker"), { ssr: false });
+const AdvancedChart = dynamic(() => import("@/components/AdvancedChart"), { ssr: false });
 
 function LoadingSpinner() {
   return (
@@ -44,6 +49,11 @@ const SECTIONS: Record<string, React.ComponentType> = {
   scanner: MomentumScanner,
   portfolio: AIPortfolio,
   watchlist: Watchlist,
+  options: OptionsChain,
+  "bulk-deals": BulkDeals,
+  "economic-calendar": EconomicCalendar,
+  ipo: IPOTracker,
+  "advanced-chart": AdvancedChart,
 };
 
 export default function Dashboard() {
