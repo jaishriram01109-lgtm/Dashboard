@@ -181,10 +181,10 @@ export default function Dashboard() {
           </button>
 
           <div className="p-4 md:p-6 max-w-screen-2xl mx-auto">
-            {Section ? (
-              activeSection === "home"
-                ? <DashboardHome onNavigate={(id) => setActiveSection(id)} />
-                : <Section />
+            {activeSection === "home" ? (
+              <DashboardHome onNavigate={(id) => setActiveSection(id)} />
+            ) : Section ? (
+              <Section />
             ) : (
               <LoadingSpinner />
             )}
