@@ -37,6 +37,9 @@ const DerivativesDashboard = dynamic(() => import("@/components/DerivativesDashb
 const MarketHeatmap = dynamic(() => import("@/components/MarketHeatmap"), { ssr: false });
 const BacktestEngine = dynamic(() => import("@/components/BacktestEngine"), { ssr: false });
 const TradeJournal = dynamic(() => import("@/components/TradeJournal"), { ssr: false });
+const PeerComparison = dynamic(() => import("@/components/PeerComparison"), { ssr: false });
+const DividendTracker = dynamic(() => import("@/components/DividendTracker"), { ssr: false });
+const PortfolioRebalancer = dynamic(() => import("@/components/PortfolioRebalancer"), { ssr: false });
 
 function LoadingSpinner() {
   return (
@@ -78,6 +81,9 @@ const SECTIONS: Record<string, React.ComponentType> = {
   heatmap: MarketHeatmap,
   backtest: BacktestEngine,
   journal: TradeJournal,
+  peer: PeerComparison,
+  dividends: DividendTracker,
+  rebalancer: PortfolioRebalancer,
 };
 
 export default function Dashboard() {
