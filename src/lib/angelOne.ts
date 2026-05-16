@@ -1,4 +1,25 @@
 const ANGEL_BASE = "https://apiconnect.angelbroking.com";
+
+// Routes requests through /api/angel proxy on Vercel (no CORS), falls back to direct on static hosts
+async function angelFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  // Try server proxy first (Vercel deployment)
+  try {
+    const proxyRes = await fetch("/api/angel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({
+        path,
+        method: options.method ?? "GET",
+        headers: options.headers ?? {},
+        body: options.body ? JSON.parse(options.body as string) : undefined,
+      }),
+    });
+    if (proxyRes.ok) return proxyRes;
+  } catch { /* not on Vercel, fall through to direct */ }
+  // Direct call fallback (Hostinger or dev)
+  return fetch(ANGEL_BASE + path, options);
+}
 export const ANGEL_API_KEY = "l6A6Prbb";
 export const ANGEL_CLIENT_ID = "A329549";
 
@@ -55,8 +76,8 @@ export async function loginAngelOne(
 ): Promise<{ session: AngelSession | null; error: string }> {
   try {
     const ip = await getPublicIP();
-    const res = await fetch(
-      `${ANGEL_BASE}/rest/auth/angelbroking/user/v1/loginByPassword`,
+    const res = await angelFetch(
+      "/rest/auth/angelbroking/user/v1/loginByPassword",
       {
         method: "POST",
         headers: {
@@ -193,8 +214,8 @@ export async function getAngelQuotes(
   }
 
   try {
-    const res = await fetch(
-      `${ANGEL_BASE}/rest/secure/angelbroking/market/v1/quote/`,
+    const res = await angelFetch(
+      "/rest/secure/angelbroking/market/v1/quote/",
       {
         method: "POST",
         headers: buildHeaders(session),
@@ -235,8 +256,8 @@ export async function getAngelCandles(
   toDate: string
 ): Promise<{ t: number; o: number; h: number; l: number; c: number; v: number }[]> {
   try {
-    const res = await fetch(
-      `${ANGEL_BASE}/rest/secure/angelbroking/historical/v1/getCandleData`,
+    const res = await angelFetch(
+      "/rest/secure/angelbroking/historical/v1/getCandleData",
       {
         method: "POST",
         headers: buildHeaders(session),
@@ -254,8 +275,8 @@ export async function getAngelCandles(
 // ─── Portfolio ─────────────────────────────────────────────────────────────
 export async function getAngelHoldings(session: AngelSession) {
   try {
-    const res = await fetch(
-      `${ANGEL_BASE}/rest/secure/angelbroking/portfolio/v1/holdings`,
+    const res = await angelFetch(
+      "/rest/secure/angelbroking/portfolio/v1/holdings",
       { headers: buildHeaders(session) }
     );
     const data = await res.json();
@@ -265,8 +286,8 @@ export async function getAngelHoldings(session: AngelSession) {
 
 export async function getAngelPositions(session: AngelSession) {
   try {
-    const res = await fetch(
-      `${ANGEL_BASE}/rest/secure/angelbroking/order/v1/getPosition`,
+    const res = await angelFetch(
+      "/rest/secure/angelbroking/order/v1/getPosition",
       { headers: buildHeaders(session) }
     );
     const data = await res.json();
@@ -282,8 +303,8 @@ export async function getAngelOptionChain(
   strikePrice: number
 ) {
   try {
-    const res = await fetch(
-      `${ANGEL_BASE}/rest/secure/angelbroking/derivatives/v1/getCandleData`,
+    const res = await angelFetch(
+      "/rest/secure/angelbroking/derivatives/v1/getCandleData",
       {
         method: "POST",
         headers: buildHeaders(session),

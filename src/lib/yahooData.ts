@@ -5,10 +5,6 @@ export interface YFQuote { price: number; change: number; changePct: number }
 async function batchFetch(symbols: string[]): Promise<Map<string, YFQuote>> {
   const symsStr = symbols.map(encodeURIComponent).join(",");
   const fields = "regularMarketPrice,regularMarketChange,regularMarketChangePercent";
-  const urls = [
-    `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${symsStr}&fields=${fields}`,
-    `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symsStr}&fields=${fields}`,
-  ];
 
   const parse = (data: unknown): Map<string, YFQuote> => {
     const map = new Map<string, YFQuote>();
@@ -20,7 +16,21 @@ async function batchFetch(symbols: string[]): Promise<Map<string, YFQuote>> {
     return map;
   };
 
-  for (const url of urls) {
+  // 1) Try server-side proxy (works on Vercel, 404s on Hostinger static — caught below)
+  try {
+    const res = await fetch(`/api/yf?symbols=${symsStr}`, { cache: "no-store" });
+    if (res.ok) {
+      const map = parse(await res.json());
+      if (map.size) return map;
+    }
+  } catch { /* not on Vercel, fall through */ }
+
+  // 2) Direct Yahoo Finance (may hit CORS on static hosts)
+  const directUrls = [
+    `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${symsStr}&fields=${fields}`,
+    `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symsStr}&fields=${fields}`,
+  ];
+  for (const url of directUrls) {
     try {
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) continue;
@@ -28,11 +38,14 @@ async function batchFetch(symbols: string[]): Promise<Map<string, YFQuote>> {
       if (map.size) return map;
     } catch { /* next */ }
   }
+
+  // 3) CORS proxy fallback
   try {
-    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(urls[0])}`;
+    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(directUrls[0])}`;
     const res = await fetch(proxyUrl, { cache: "no-store" });
     if (res.ok) { const map = parse(await res.json()); if (map.size) return map; }
   } catch { /* ignore */ }
+
   return new Map();
 }
 
