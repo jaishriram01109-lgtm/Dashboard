@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const dynamic = process.env.HOSTINGER === "true" ? "force-static" : "force-dynamic";
+
 const ANGEL_BASE = "https://apiconnect.angelbroking.com";
 
 // Server-side Angel One proxy — avoids browser CORS restrictions
 export async function POST(request: NextRequest) {
+  if (process.env.HOSTINGER === "true") {
+    return NextResponse.json({ error: "Not available on static host" }, { status: 503 });
+  }
   try {
     const { path, method = "GET", headers: clientHeaders = {}, body } = await request.json();
 

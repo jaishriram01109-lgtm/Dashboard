@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// force-static lets Hostinger static export build succeed; Vercel uses force-dynamic
+export const dynamic = process.env.HOSTINGER === "true" ? "force-static" : "force-dynamic";
+
 // Server-side Yahoo Finance proxy — avoids browser CORS restrictions
 export async function GET(request: NextRequest) {
+  if (process.env.HOSTINGER === "true") {
+    return NextResponse.json({ error: "Not available on static host" }, { status: 503 });
+  }
   const { searchParams } = new URL(request.url);
   const symbols = searchParams.get("symbols") ?? "";
   if (!symbols) return NextResponse.json({ error: "symbols required" }, { status: 400 });
