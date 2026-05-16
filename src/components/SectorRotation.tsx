@@ -6,7 +6,7 @@ import type { SectorData, TimeFrame } from "@/lib/types";
 import { cn, fmt, fmtPct, colorFromChange, signalColor, signalLabel, scoreColor, scoreBg, phaseColor } from "@/lib/utils";
 import {
   RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer,
-  Tooltip, BarChart, Bar, XAxis, YAxis, Cell, ScatterChart, Scatter, ZAxis,
+  Tooltip, BarChart, Bar, XAxis, YAxis, Cell, ScatterChart, Scatter, ZAxis, CartesianGrid,
 } from "recharts";
 
 const TIMEFRAMES: TimeFrame[] = ["1D", "1W", "1M", "3M", "1Y"];
@@ -255,7 +255,7 @@ function RSvsMomentum() {
       <div className="h-52">
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={{ top: 5, right: 20, bottom: 20, left: 5 }}>
-            <PolarGrid stroke="#1E1E24" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#2a1a1a" />
             <XAxis dataKey="x" name="RS" type="number" domain={[20, 100]}
               label={{ value: "Relative Strength →", position: "insideBottom", offset: -10, fill: "#A09278", fontSize: 10 }}
               tick={{ fill: "#A09278", fontSize: 10 }} />

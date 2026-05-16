@@ -25,7 +25,7 @@ export default function MarketTicker() {
 
   return (
     <div className="bg-bg-secondary border-b border-bg-border overflow-hidden ticker-fade-left h-8 flex items-center">
-      <div className="flex whitespace-nowrap animate-[ticker_60s_linear_infinite]">
+      <div className="flex whitespace-nowrap animate-[ticker_160s_linear_infinite]">
         {doubled.map((item, i) => (
           <span key={i} className="inline-flex items-center gap-2 px-4 text-xs font-mono">
             <span className="text-ivory-300 font-semibold tracking-wide">{item.symbol}</span>
