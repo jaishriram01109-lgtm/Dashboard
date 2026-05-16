@@ -129,13 +129,46 @@ const SECTIONS: Record<string, React.ComponentType> = {
   goals:     GoalPlanner,
 };
 
+function isValidSection(id: string) {
+  return id === "home" || id in SECTIONS;
+}
+
 export default function Dashboard() {
   const [activeSection, setActiveSection] = useState("home");
   const [alerts, setAlerts] = useState(alertData);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const unreadAlerts = alerts.filter(a => !a.read).length;
+  // Read hash on mount for direct links / bookmarks
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (hash && isValidSection(hash)) {
+      setActiveSection(hash);
+    } else {
+      // Seed history so first back-press goes to home, not out of site
+      window.history.replaceState({ section: "home" }, "", "#home");
+    }
+  }, []);
 
+  // Browser back / forward
+  useEffect(() => {
+    const handlePopState = () => {
+      const hash = window.location.hash.slice(1) || "home";
+      setActiveSection(isValidSection(hash) ? hash : "home");
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const navigateTo = (id: string) => {
+    if (id === activeSection) { setSidebarOpen(false); return; }
+    window.history.pushState({ section: id }, "", `#${id}`);
+    setActiveSection(id);
+    setSidebarOpen(false);
+    // Scroll content back to top on section change
+    document.getElementById("main-content")?.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const unreadAlerts = alerts.filter(a => !a.read).length;
   const Section = SECTIONS[activeSection];
 
   return (
@@ -146,43 +179,46 @@ export default function Dashboard() {
       {/* Header */}
       <Header
         unreadCount={unreadAlerts}
-        onAlertClick={() => setActiveSection("alerts")}
+        onAlertClick={() => navigateTo("alerts")}
+        onNavigate={navigateTo}
       />
 
       {/* Main layout */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Mobile sidebar overlay */}
+        {/* Mobile sidebar backdrop */}
         {sidebarOpen && (
           <div
-            className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+            className="fixed inset-0 bg-black/70 z-40 lg:hidden"
             onClick={() => setSidebarOpen(false)}
           />
         )}
 
         {/* Sidebar — desktop always visible, mobile overlay */}
         <div className={cn(
-          "fixed lg:relative inset-y-0 left-0 z-50 lg:z-auto transition-transform lg:translate-x-0",
+          "fixed lg:relative inset-y-0 left-0 z-50 lg:z-auto transition-transform duration-300 lg:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}>
           <Sidebar
             active={activeSection}
-            onChange={(id) => { setActiveSection(id); setSidebarOpen(false); }}
+            onChange={navigateTo}
+            onClose={() => setSidebarOpen(false)}
           />
         </div>
 
         {/* Content area */}
-        <main className="flex-1 overflow-y-auto relative">
-          {/* Mobile hamburger */}
+        <main id="main-content" className="flex-1 overflow-y-auto relative">
+          {/* Mobile hamburger FAB */}
           <button
-            className="lg:hidden fixed bottom-4 left-4 z-50 w-10 h-10 bg-maroon-800 rounded-full flex items-center justify-center shadow-glow-maroon"
+            className="lg:hidden fixed bottom-5 left-4 z-50 w-12 h-12 bg-maroon-800 rounded-full flex items-center justify-center shadow-glow-maroon border border-maroon-700"
             onClick={() => setSidebarOpen(o => !o)}
+            aria-label="Open navigation"
           >
             {sidebarOpen ? <X className="w-5 h-5 text-ivory-100" /> : <Menu className="w-5 h-5 text-ivory-100" />}
           </button>
 
-          <div className="p-4 md:p-6 max-w-screen-2xl mx-auto">
+          <div className="p-3 md:p-6 max-w-screen-2xl mx-auto pb-24 lg:pb-6">
             {activeSection === "home" ? (
-              <DashboardHome onNavigate={(id) => setActiveSection(id)} />
+              <DashboardHome onNavigate={navigateTo} />
             ) : Section ? (
               <Section />
             ) : (
