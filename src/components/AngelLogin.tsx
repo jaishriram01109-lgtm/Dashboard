@@ -25,7 +25,7 @@ export default function AngelLogin({ onSuccess, onSkip }: Props) {
 
   const handleLogin = async () => {
     const pwd = savedPwd ?? password;
-    if (!pwd) { setError("Pehli baar password bharo"); return; }
+    if (!pwd) { setError("4-digit PIN bharo"); return; }
     setLoading(true);
     setError("");
 
@@ -41,9 +41,9 @@ export default function AngelLogin({ onSuccess, onSkip }: Props) {
       if (savedPwd) {
         localStorage.removeItem(PWD_KEY);
         setSavedPwd(null);
-        setError("Password galat ho gaya hai. Dobara enter karo.");
+        setError("PIN galat ho gaya. Dobara enter karo.");
       } else {
-        setError(err || "Login failed. Check karo password aur TOTP.");
+        setError(err || "Login failed. PIN aur TOTP check karo.");
       }
     }
   };
@@ -65,7 +65,7 @@ export default function AngelLogin({ onSuccess, onSkip }: Props) {
           <div>
             <h2 className="text-sm font-bold text-ivory-100 font-display">Angel One</h2>
             <p className="text-[10px] text-ivory-500">
-              {totpOnly ? "Google Authenticator OTP bharo" : "Ek baar password bharo — phir sirf OTP"}
+              {totpOnly ? "Google Authenticator OTP bharo" : "Ek baar 4-digit PIN bharo — phir sirf OTP"}
             </p>
           </div>
         </div>
@@ -91,15 +91,17 @@ export default function AngelLogin({ onSuccess, onSkip }: Props) {
         {!totpOnly && (
           <div className="mb-3">
             <label className="text-[10px] text-ivory-600 uppercase tracking-wider font-semibold">
-              Password <span className="text-ivory-700 normal-case">(sirf ek baar)</span>
+              PIN <span className="text-ivory-700 normal-case">(4-digit — sirf ek baar)</span>
             </label>
             <input
               type="password"
+              inputMode="numeric"
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={e => setPassword(e.target.value.replace(/\D/g, "").slice(0, 4))}
               onKeyDown={e => e.key === "Enter" && handleLogin()}
-              placeholder="Angel One password"
-              className="mt-1 w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2.5 text-xs text-ivory-200 placeholder-ivory-700 focus:outline-none focus:border-maroon-700 transition-colors"
+              placeholder="● ● ● ●"
+              maxLength={4}
+              className="mt-1 w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-3 text-sm text-ivory-200 placeholder-ivory-700 focus:outline-none focus:border-maroon-700 transition-colors font-mono tracking-[0.5em] text-center"
             />
           </div>
         )}
@@ -134,7 +136,7 @@ export default function AngelLogin({ onSuccess, onSkip }: Props) {
 
         <button
           onClick={handleLogin}
-          disabled={loading || (!totpOnly && !password)}
+          disabled={loading || (!totpOnly && password.length < 4)}
           className="w-full py-3 bg-gradient-maroon text-ivory-100 text-sm font-bold rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-40"
         >
           {loading && <Loader2 className="w-4 h-4 animate-spin" />}
