@@ -1,0 +1,107 @@
+{
+  "_comment": "ZEPHYR VALE — FLUX.1-dev + LoRA Face Consistency Workflow",
+  "_version": "1.0",
+  "_model": "FLUX.1-dev",
+  "_lora": "ZephyrBase-v4.safetensors",
+  "_instructions": "Load in ComfyUI. Set your prompt in the CLIPTextEncode node. Adjust LoRA strength (default 0.85).",
+
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": { "ckpt_name": "flux1-dev.safetensors" }
+  },
+
+  "2": {
+    "class_type": "LoraLoader",
+    "inputs": {
+      "model": ["1", 0],
+      "clip": ["1", 1],
+      "lora_name": "ZephyrBase-v4.safetensors",
+      "strength_model": 0.85,
+      "strength_clip": 0.85
+    }
+  },
+
+  "3": {
+    "class_type": "LoraLoader",
+    "inputs": {
+      "model": ["2", 0],
+      "clip": ["2", 1],
+      "lora_name": "ZephyrCinema-v2.safetensors",
+      "strength_model": 0.4,
+      "strength_clip": 0.4
+    }
+  },
+
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "_comment": "POSITIVE PROMPT — paste your generated prompt here",
+    "inputs": {
+      "clip": ["3", 1],
+      "text": "hyper realistic luxury male model ZEPHYR VALE, same consistent face identity, sharp defined jawline, deep-set hunter eyes, high cheekbones, straight refined nose, European-Indian masculine blend, natural skin texture with subtle pores, premium grooming, 27 years old, tall athletic lean physique, wearing Dior Homme SS25 charcoal suit, standing on the deck of a private mega-yacht in Monaco harbour, city lights and boats in bokeh background, Mediterranean golden sunset, warm golden hour sunlight, directional soft shadows, rim light on jaw, dark brooding gaze into distance, slight jaw tension, intense and mysterious expression, shot on Sony A7R V RAW, 85mm f/1.4 lens, cinematic depth of field, luxury editorial photography, Vogue and GQ magazine quality, 8K ultra-detailed resolution, natural DSLR realism, luxury fashion editorial, hyper realistic, premium color grading, Instagram luxury aesthetic, viral fashion composition"
+    }
+  },
+
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "_comment": "NEGATIVE PROMPT — do not change",
+    "inputs": {
+      "clip": ["3", 1],
+      "text": "cartoon, anime, illustration, painting, low quality, blurry, watermark, signature, logo, text overlay, artificial looking skin, plastic face, over-smoothed skin, AI artifact, deformed hands, wrong anatomy, over-symmetry, unnatural lighting, cheap fashion, generic model look, distorted face, multiple people, extra limbs, bad proportions, unrealistic eyes, dull expression, poorly tailored clothing"
+    }
+  },
+
+  "6": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 1024,
+      "height": 1280,
+      "_comment": "Portrait aspect ratio. Use 1024x1024 for square, 1280x768 for landscape"
+    }
+  },
+
+  "7": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["3", 0],
+      "positive": ["4", 0],
+      "negative": ["5", 0],
+      "latent_image": ["6", 0],
+      "seed": -1,
+      "steps": 35,
+      "cfg": 3.5,
+      "_comment_cfg": "FLUX uses lower CFG (3-4). For SDXL use 7.5",
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1.0
+    }
+  },
+
+  "8": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["7", 0],
+      "vae": ["1", 2]
+    }
+  },
+
+  "9": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["8", 0],
+      "filename_prefix": "ZephyrVale"
+    }
+  },
+
+  "_lora_training_notes": {
+    "base_model": "FLUX.1-dev (recommended) or SDXL 1.0",
+    "training_images": "200-500 high quality photos of consistent face",
+    "caption_format": "ZEPHYR VALE, luxury male model, [facial features], [expression]",
+    "training_steps": "2000-4000 for SDXL, 5000-12000 for FLUX",
+    "learning_rate": "0.0001 for SDXL, 0.00005 for FLUX",
+    "batch_size": 1,
+    "resolution": 1024,
+    "tools": ["kohya_ss", "SimpleTuner (for FLUX)", "ai-toolkit"],
+    "important": "Use 'trigger word' = ZEPHYR VALE in every training caption",
+    "consistency_target": "99%+ score on FaceID similarity check post-generation"
+  }
+}

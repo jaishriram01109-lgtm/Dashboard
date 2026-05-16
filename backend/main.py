@@ -1,14 +1,18 @@
 """
-SmartFlow AI — Institutional Market Intelligence Backend
+SmartFlow AI — Institutional Market Intelligence + AI Luxury Model Backend
 FastAPI + WebSocket real-time data engine
 """
 import asyncio
 import json
 import random
 import math
+import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -293,8 +297,19 @@ rotation_engine = SectorRotationEngine()
 async def lifespan(app: FastAPI):
     # Start background WebSocket broadcast
     task = asyncio.create_task(broadcast_loop())
+    # Start luxury post scheduler
+    try:
+        from luxury.scheduler import start_scheduler, stop_scheduler
+        start_scheduler()
+    except Exception:
+        pass
     yield
     task.cancel()
+    try:
+        from luxury.scheduler import stop_scheduler
+        stop_scheduler()
+    except Exception:
+        pass
 
 async def broadcast_loop():
     """Broadcasts live market ticks every 2 seconds to all WebSocket clients."""
@@ -331,25 +346,38 @@ async def broadcast_loop():
 # ─── APP ─────────────────────────────────────────────────────
 
 app = FastAPI(
-    title="SmartFlow AI API",
-    description="Institutional Market Intelligence Backend",
-    version="2.0.0",
+    title="SmartFlow AI + ZEPHYR VALE API",
+    description="Institutional Market Intelligence + AI Luxury Model Backend",
+    version="2.1.0",
     lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ── Mount luxury model router ────────────────────────────────
+try:
+    from luxury import router as luxury_router
+    app.include_router(luxury_router)
+except Exception as _e:
+    import logging
+    logging.getLogger(__name__).warning(f"Luxury router not mounted: {_e}")
+
 # ─── ROUTES ──────────────────────────────────────────────────
 
 @app.get("/")
 async def root():
-    return {"status": "SmartFlow AI Engine Active", "version": "2.0.0", "timestamp": datetime.utcnow().isoformat()}
+    return {
+        "status": "SmartFlow AI + ZEPHYR VALE Engine Active",
+        "version": "2.1.0",
+        "modules": ["market", "luxury_model"],
+        "timestamp": datetime.utcnow().isoformat(),
+    }
 
 @app.get("/api/market/quotes")
 async def get_quotes(symbols: Optional[str] = Query(None)):
