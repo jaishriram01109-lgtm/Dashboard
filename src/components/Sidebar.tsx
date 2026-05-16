@@ -12,6 +12,7 @@ import {
   ChevronDown, ChevronRight, Home, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LIVE_SECTION_IDS } from "@/lib/liveData";
 
 const NAV_ITEMS = [
   // ── MARKET DATA ──────────────────────────────────────────────────
@@ -133,6 +134,10 @@ export default function Sidebar({ active, onChange, onClose }: SidebarProps) {
             {item.badge}
           </span>
         )}
+        <span
+          title={LIVE_SECTION_IDS.has(item.id) ? "Live data" : "Simulated data"}
+          className={cn("text-[8px] flex-shrink-0", LIVE_SECTION_IDS.has(item.id) ? "text-signal-bull" : "text-gold-500")}
+        >★</span>
       </button>
     );
   };
@@ -180,7 +185,8 @@ export default function Sidebar({ active, onChange, onClose }: SidebarProps) {
           /* Grouped nav */
           GROUPS.map((group) => {
             const items = NAV_ITEMS.filter((i) => i.group === group.id);
-            const hasActive = items.some((i) => i.id === active);
+            // "home" is in market group but shouldn't auto-expand the group
+            const hasActive = items.some((i) => i.id === active && active !== "home");
             const isCollapsed = collapsed[group.id] ?? !hasActive;
             return (
               <div key={group.id}>

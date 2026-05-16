@@ -1,13 +1,7 @@
-const YF_V8 = "https://query1.finance.yahoo.com/v8/finance/chart";
+// Sections that have real/live data sources wired up
+export const LIVE_SECTION_IDS = new Set<string>(["home"]);
 
-interface YFMeta {
-  regularMarketPrice?: number;
-  previousClose?: number;
-  chartPreviousClose?: number;
-  regularMarketChange?: number;
-  regularMarketChangePercent?: number;
-}
-
+// ─── Types ────────────────────────────────────────────────────────────────────
 export interface LiveQuote {
   symbol: string;
   name: string;
@@ -24,11 +18,16 @@ export interface IndexQuote {
   pct: number;
 }
 
-export interface ChartPoint {
-  t: number;
-  v: number;
+export interface ChartPoint { t: number; v: number }
+
+export interface HomeData {
+  indices: IndexQuote[];
+  isReal: boolean;
+  usdInr: number | null;
+  chartData: ChartPoint[];
 }
 
+// ─── Symbol lists ─────────────────────────────────────────────────────────────
 const HOME_INDEX_SYMBOLS = [
   { symbol: "^NSEI",      name: "NIFTY 50",     fallback: 22850.45 },
   { symbol: "^NSEBANK",   name: "BANK NIFTY",   fallback: 48234.60 },
@@ -37,44 +36,6 @@ const HOME_INDEX_SYMBOLS = [
   { symbol: "^CNXPHARMA", name: "NIFTY PHARMA",  fallback: 21345.80 },
   { symbol: "^INDIAVIX",  name: "INDIA VIX",     fallback: 13.42    },
 ];
-
-export async function fetchHomeIndices(): Promise<IndexQuote[]> {
-  const results = await Promise.allSettled(
-    HOME_INDEX_SYMBOLS.map(async (idx) => {
-      const q = await fetchSingleQuote({ symbol: idx.symbol, name: idx.name });
-      if (!q) return { name: idx.name, symbol: idx.symbol, value: idx.fallback, change: 0, pct: 0 };
-      return { name: idx.name, symbol: idx.symbol, value: q.price, change: q.change, pct: q.changePct };
-    })
-  );
-  return results
-    .filter((r): r is PromiseFulfilledResult<IndexQuote> => r.status === "fulfilled")
-    .map(r => r.value);
-}
-
-export async function fetchNiftyIntraday(): Promise<ChartPoint[]> {
-  try {
-    const res = await fetch(
-      `${YF_V8}/${encodeURIComponent("^NSEI")}?interval=5m&range=1d`,
-      { cache: "no-store" }
-    );
-    if (!res.ok) throw new Error();
-    const data = await res.json();
-    const result = data?.chart?.result?.[0];
-    if (!result) throw new Error();
-    const timestamps: number[] = result.timestamp ?? [];
-    const closes: (number | null)[] = result.indicators?.quote?.[0]?.close ?? [];
-    return timestamps
-      .map((_, i) => ({ t: i, v: closes[i] ?? 0 }))
-      .filter(p => p.v > 0);
-  } catch {
-    return [];
-  }
-}
-
-export async function fetchForexRate(symbol: string): Promise<number | null> {
-  const q = await fetchSingleQuote({ symbol, name: symbol });
-  return q ? q.price : null;
-}
 
 export const TICKER_SYMBOLS: { symbol: string; name: string }[] = [
   { symbol: "^NSEI",        name: "NIFTY 50"     },
@@ -95,32 +56,162 @@ export const TICKER_SYMBOLS: { symbol: string; name: string }[] = [
   { symbol: "USDINR=X",     name: "USD/INR"      },
 ];
 
-async function fetchSingleQuote(sym: { symbol: string; name: string }): Promise<LiveQuote | null> {
-  try {
-    const res = await fetch(
-      `${YF_V8}/${encodeURIComponent(sym.symbol)}?interval=1d&range=1d`,
-      { cache: "no-store" }
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    const meta: YFMeta = data?.chart?.result?.[0]?.meta ?? {};
-    const price = meta.regularMarketPrice ?? 0;
-    if (!price) return null;
-    const prev = meta.previousClose ?? meta.chartPreviousClose ?? price;
-    const change = meta.regularMarketChange ?? (price - prev);
-    const changePct = meta.regularMarketChangePercent ?? (prev ? (change / prev) * 100 : 0);
-    return { symbol: sym.symbol, name: sym.name, price, change, changePct };
-  } catch {
-    return null;
-  }
+// ─── Fetch helpers ────────────────────────────────────────────────────────────
+interface YFMeta {
+  regularMarketPrice?: number;
+  previousClose?: number;
+  chartPreviousClose?: number;
+  regularMarketChange?: number;
+  regularMarketChangePercent?: number;
 }
 
+function parseV8Meta(data: unknown, sym: { symbol: string; name: string }): LiveQuote | null {
+  const meta: YFMeta = (data as any)?.chart?.result?.[0]?.meta ?? {};
+  const price = meta.regularMarketPrice ?? 0;
+  if (!price) return null;
+  const prev = meta.previousClose ?? meta.chartPreviousClose ?? price;
+  const change = meta.regularMarketChange ?? (price - prev);
+  const changePct = meta.regularMarketChangePercent ?? (prev ? (change / prev) * 100 : 0);
+  return { symbol: sym.symbol, name: sym.name, price, change, changePct };
+}
+
+// Try multiple Yahoo Finance endpoints for a single symbol
+async function fetchSingleQuote(sym: { symbol: string; name: string }): Promise<LiveQuote | null> {
+  const encoded = encodeURIComponent(sym.symbol);
+  const v8Urls = [
+    `https://query2.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=1d`,
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=1d`,
+  ];
+
+  for (const url of v8Urls) {
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const quote = parseV8Meta(data, sym);
+      if (quote) return quote;
+    } catch { /* try next */ }
+  }
+
+  // Last resort: public CORS proxy
+  try {
+    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(v8Urls[0])}`;
+    const res = await fetch(proxyUrl, { cache: "no-store" });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return parseV8Meta(data, sym);
+  } catch { return null; }
+}
+
+// Batch-fetch via v7 quote API (fastest — one request for all symbols)
+async function fetchBatchQuotes(
+  symbols: { symbol: string; name: string }[]
+): Promise<LiveQuote[]> {
+  const nameMap = Object.fromEntries(symbols.map(s => [s.symbol, s.name]));
+  const symsStr = symbols.map(s => s.symbol).join(",");
+  const fields = "regularMarketPrice,regularMarketChange,regularMarketChangePercent";
+  const batchUrls = [
+    `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symsStr)}&fields=${fields}`,
+    `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symsStr)}&fields=${fields}`,
+  ];
+
+  for (const url of batchUrls) {
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const results: unknown[] = (data as any)?.quoteResponse?.result ?? [];
+      if (!results.length) continue;
+      const quotes = results
+        .map((q: any) => ({
+          symbol: q.symbol as string,
+          name: nameMap[q.symbol as string] ?? (q.shortName as string) ?? (q.symbol as string),
+          price: (q.regularMarketPrice as number) ?? 0,
+          change: (q.regularMarketChange as number) ?? 0,
+          changePct: (q.regularMarketChangePercent as number) ?? 0,
+        }))
+        .filter((q: LiveQuote) => q.price > 0);
+      if (quotes.length) return quotes;
+    } catch { /* try next */ }
+  }
+  return [];
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
 export async function fetchTickerQuotes(): Promise<LiveQuote[]> {
-  const results = await Promise.allSettled(
-    TICKER_SYMBOLS.map(s => fetchSingleQuote(s))
-  );
+  // Try batch first (1 request), fall back to individual fetches
+  const batch = await fetchBatchQuotes(TICKER_SYMBOLS);
+  if (batch.length >= 8) return batch;
+
+  const results = await Promise.allSettled(TICKER_SYMBOLS.map(s => fetchSingleQuote(s)));
   return results
     .filter((r): r is PromiseFulfilledResult<LiveQuote | null> => r.status === "fulfilled")
     .map(r => r.value)
     .filter((v): v is LiveQuote => v !== null);
+}
+
+export async function fetchHomeData(): Promise<HomeData> {
+  // Batch-fetch all home indices + USDINR in one call
+  const all = [...HOME_INDEX_SYMBOLS, { symbol: "USDINR=X", name: "USD/INR", fallback: 83.42 }];
+  const batch = await fetchBatchQuotes(all);
+  const batchMap = Object.fromEntries(batch.map(q => [q.symbol, q]));
+
+  // Build indices — if batch had no data, try individual
+  const indices: IndexQuote[] = [];
+  let realCount = 0;
+
+  for (const idx of HOME_INDEX_SYMBOLS) {
+    const bq = batchMap[idx.symbol];
+    if (bq && bq.price > 0) {
+      realCount++;
+      indices.push({ name: idx.name, symbol: idx.symbol, value: bq.price, change: bq.change, pct: bq.changePct });
+    } else {
+      // Try individual fetch
+      const q = await fetchSingleQuote(idx);
+      if (q && q.price > 0) {
+        realCount++;
+        indices.push({ name: idx.name, symbol: idx.symbol, value: q.price, change: q.change, pct: q.changePct });
+      } else {
+        indices.push({ name: idx.name, symbol: idx.symbol, value: idx.fallback, change: 0, pct: 0 });
+      }
+    }
+  }
+
+  // USD/INR
+  const usdBq = batchMap["USDINR=X"];
+  let usdInr: number | null = usdBq?.price ?? null;
+  if (!usdInr) {
+    const q = await fetchSingleQuote({ symbol: "USDINR=X", name: "USD/INR" });
+    usdInr = q?.price ?? null;
+  }
+
+  // Nifty intraday chart
+  const chartData = await fetchNiftyIntraday();
+
+  return { indices, isReal: realCount >= 2, usdInr, chartData };
+}
+
+async function fetchNiftyIntraday(): Promise<ChartPoint[]> {
+  const encoded = encodeURIComponent("^NSEI");
+  const urls = [
+    `https://query2.finance.yahoo.com/v8/finance/chart/${encoded}?interval=5m&range=1d`,
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=5m&range=1d`,
+  ];
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const result = (data as any)?.chart?.result?.[0];
+      if (!result) continue;
+      const timestamps: number[] = result.timestamp ?? [];
+      const closes: (number | null)[] = result.indicators?.quote?.[0]?.close ?? [];
+      const points = timestamps
+        .map((_, i) => ({ t: i, v: closes[i] ?? 0 }))
+        .filter(p => p.v > 0);
+      if (points.length > 5) return points;
+    } catch { /* try next */ }
+  }
+  return [];
 }

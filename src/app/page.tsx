@@ -182,7 +182,10 @@ export default function Dashboard() {
       {/* Header */}
       <Header
         unreadCount={unreadAlerts}
-        onAlertClick={() => navigateTo("alerts")}
+        onAlertClick={() => {
+          setAlerts(prev => prev.map(a => ({ ...a, read: true })));
+          navigateTo("alerts");
+        }}
         onNavigate={navigateTo}
       />
 

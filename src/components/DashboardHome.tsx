@@ -6,7 +6,7 @@ import {
   AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip,
 } from "recharts";
 import {
-  fetchHomeIndices, fetchNiftyIntraday, fetchForexRate,
+  fetchHomeData,
   type IndexQuote, type ChartPoint,
 } from "@/lib/liveData";
 
@@ -92,15 +92,9 @@ export default function DashboardHome({ onNavigate }: Props) {
     checkMarket();
 
     const load = async () => {
-      const [idxData, chartPts, usd] = await Promise.all([
-        fetchHomeIndices(),
-        fetchNiftyIntraday(),
-        fetchForexRate("USDINR=X"),
-      ]);
-      if (idxData.length > 0) {
-        setIndices(idxData);
-        setIsLive(idxData.some(q => q.value > 0));
-      }
+      const { indices: idxData, isReal, usdInr: usd, chartData: chartPts } = await fetchHomeData();
+      if (idxData.length > 0) setIndices(idxData);
+      if (isReal) setIsLive(true);
       if (chartPts.length > 5) setChartData(chartPts);
       if (usd) setUsdInr(usd);
     };
