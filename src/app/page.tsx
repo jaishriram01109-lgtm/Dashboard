@@ -63,6 +63,15 @@ const TaxOptimizer = dynamic(() => import("@/components/TaxOptimizer"), { ssr: f
 const GoalPlanner = dynamic(() => import("@/components/GoalPlanner"), { ssr: false });
 const DashboardHome = dynamic(() => import("@/components/DashboardHome"), { ssr: false });
 
+// ── AI Luxury Model System ─────────────────────────────────────────────────
+const LuxuryModelHub    = dynamic(() => import("@/components/luxury/LuxuryModelHub"),    { ssr: false });
+const ModelIdentity     = dynamic(() => import("@/components/luxury/ModelIdentity"),     { ssr: false });
+const ContentStudio     = dynamic(() => import("@/components/luxury/ContentStudio"),     { ssr: false });
+const AgentHub          = dynamic(() => import("@/components/luxury/AgentHub"),          { ssr: false });
+const InstagramGrowth   = dynamic(() => import("@/components/luxury/InstagramGrowth"),   { ssr: false });
+const ApprovalQueue     = dynamic(() => import("@/components/luxury/ApprovalQueue"),     { ssr: false });
+const CampaignPlanner   = dynamic(() => import("@/components/luxury/CampaignPlanner"),  { ssr: false });
+
 function LoadingSpinner() {
   return (
     <div className="flex items-center justify-center h-64">
@@ -127,6 +136,14 @@ const SECTIONS: Record<string, React.ComponentType> = {
   insider:   InsiderRegistry,
   tax:       TaxOptimizer,
   goals:     GoalPlanner,
+  // AI Luxury Model System
+  "luxury-hub":       LuxuryModelHub,
+  "model-identity":   ModelIdentity,
+  "content-studio":   ContentStudio,
+  "agent-hub":        AgentHub,
+  "instagram-growth": InstagramGrowth,
+  "approval-queue":   ApprovalQueue,
+  "campaign-planner": CampaignPlanner,
 };
 
 export default function Dashboard() {
