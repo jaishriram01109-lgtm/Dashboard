@@ -11,6 +11,8 @@ import {
   AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip,
   BarChart, Bar, Cell,
 } from "recharts";
+import { useSystemHealth } from "@/lib/useLuxuryAgent";
+import SystemStatusBar from "./SystemStatusBar";
 
 // ─── Mock data ─────────────────────────────────────────────────────────────
 const FOLLOWER_DATA = [
@@ -92,6 +94,7 @@ function ContentTypeIcon({ type }: { type: string }) {
 // ─── Main Component ────────────────────────────────────────────────────────
 export default function LuxuryModelHub() {
   const [tick, setTick] = useState(0);
+  const health = useSystemHealth(30_000);
 
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 3000);
@@ -100,6 +103,7 @@ export default function LuxuryModelHub() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <SystemStatusBar />
 
       {/* ── Hero Banner ──────────────────────────────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl border border-gold-700/30"

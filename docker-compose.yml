@@ -23,13 +23,59 @@ services:
     ports:
       - "8000:8000"
     environment:
+      # Core
       - DATABASE_URL=postgresql+asyncpg://smartflow:smartflow@postgres:5432/smartflow
       - REDIS_URL=redis://redis:6379
       - NSE_API_KEY=${NSE_API_KEY:-demo}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-demo}
+      # AI Agents
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # Instagram Graph API
+      - INSTAGRAM_USER_ID=${INSTAGRAM_USER_ID:-}
+      - INSTAGRAM_ACCESS_TOKEN=${INSTAGRAM_ACCESS_TOKEN:-}
+      - FACEBOOK_APP_ID=${FACEBOOK_APP_ID:-}
+      - FACEBOOK_APP_SECRET=${FACEBOOK_APP_SECRET:-}
+      # Image Generation
+      - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN:-}
+      - STABILITY_API_KEY=${STABILITY_API_KEY:-}
+      - COMFYUI_URL=${COMFYUI_URL:-http://localhost:8188}
+      # Storage (Cloudflare R2)
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:-}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:-}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:-}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME:-zephyr-vale-media}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL:-}
+      # Telegram Approval Bot
+      - TELEGRAM_APPROVAL_BOT_TOKEN=${TELEGRAM_APPROVAL_BOT_TOKEN:-}
+      - TELEGRAM_APPROVAL_CHAT_ID=${TELEGRAM_APPROVAL_CHAT_ID:-}
+      # LoRA config
+      - LORA_MODEL_PATH=${LORA_MODEL_PATH:-ZephyrBase-v4.safetensors}
+      - LORA_STRENGTH=${LORA_STRENGTH:-0.85}
     depends_on:
       - postgres
       - redis
+    restart: unless-stopped
+    volumes:
+      - lora_models:/app/models
+
+  # ── n8n Workflow Automation ──────────────────────────────────
+  n8n:
+    image: n8nio/n8n:latest
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-zephyrvale2025}
+      - WEBHOOK_URL=http://n8n:5678
+      - BACKEND_URL=http://backend:8000
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_APPROVAL_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_APPROVAL_CHAT_ID:-}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-change-me-in-production}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      - backend
     restart: unless-stopped
 
   # ── PostgreSQL ──────────────────────────────────────────────
@@ -69,3 +115,5 @@ services:
 
 volumes:
   pgdata:
+  n8n_data:
+  lora_models:

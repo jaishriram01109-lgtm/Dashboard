@@ -5,8 +5,9 @@ import {
   Cpu, Crown, Palette, Wand2, ScanFace, TrendingUp,
   BarChart3, Type, Calendar, CheckCircle, Activity,
   Zap, Clock, Play, Pause, RefreshCw, ChevronRight,
-  MessageSquare, AlertCircle, Terminal,
+  MessageSquare, AlertCircle, Terminal, Wifi, WifiOff,
 } from "lucide-react";
+import { useAgentHub } from "@/lib/useLuxuryAgent";
 
 // ─── Agent definitions ─────────────────────────────────────────────────────
 const AGENTS = [
@@ -149,16 +150,27 @@ const ACTIVITY_LOG = [
 export default function AgentHub() {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [logPaused, setLogPaused] = useState(false);
-  const [logLines, setLogLines] = useState(ACTIVITY_LOG);
-  const [tick, setTick] = useState(0);
+  const { wsLogs, wsConnected, agents: liveAgents } = useAgentHub(30_000);
 
-  useEffect(() => {
-    if (logPaused) return;
-    const id = setInterval(() => setTick(t => t + 1), 4000);
-    return () => clearInterval(id);
-  }, [logPaused]);
+  // Merge live agent data (status/tasks) over the static display data
+  const mergedAgents = AGENTS.map((ag) => {
+    const live = liveAgents.find((l) => l.id === ag.id);
+    if (!live) return ag;
+    return {
+      ...ag,
+      status: live.status,
+      tasksDone: live.tasks_done,
+      uptime: live.uptime,
+    };
+  });
 
-  const selected = AGENTS.find(a => a.id === selectedAgent);
+  // Show live WS logs if available, otherwise fall back to mock
+  const displayLogs =
+    !logPaused && wsLogs.length > 0
+      ? wsLogs.map((e) => ({ time: e.timestamp, agent: e.agent, msg: e.message, type: e.log_type }))
+      : ACTIVITY_LOG;
+
+  const selected = mergedAgents.find(a => a.id === selectedAgent);
 
   const statusColor: Record<string, string> = {
     active: "text-signal-bull",
@@ -195,7 +207,7 @@ export default function AgentHub() {
 
       {/* Agent grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {AGENTS.map(ag => (
+        {mergedAgents.map(ag => (
           <button key={ag.id}
             onClick={() => setSelectedAgent(selectedAgent === ag.id ? null : ag.id)}
             className={`text-left p-4 rounded-xl border transition-all ${
@@ -282,7 +294,15 @@ export default function AgentHub() {
           <div className="flex items-center gap-2">
             <Terminal className="w-4 h-4 text-gold-500" />
             <span className="text-xs font-semibold text-ivory-200 uppercase tracking-wider">Live Activity Log</span>
-            <span className="w-2 h-2 rounded-full bg-signal-bull live-dot" />
+            {wsConnected ? (
+              <span className="flex items-center gap-1 text-[9px] text-emerald-400">
+                <Wifi className="w-2.5 h-2.5" /> WS Live
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-[9px] text-ivory-700">
+                <WifiOff className="w-2.5 h-2.5" /> Demo
+              </span>
+            )}
           </div>
           <button
             onClick={() => setLogPaused(p => !p)}
@@ -292,7 +312,7 @@ export default function AgentHub() {
           </button>
         </div>
         <div className="divide-y divide-bg-border max-h-64 overflow-y-auto font-mono">
-          {logLines.map((l, i) => (
+          {displayLogs.map((l, i) => (
             <div key={i} className="flex items-start gap-3 px-4 py-2 hover:bg-bg-secondary/40 transition-colors text-[10px]">
               <span className="text-ivory-800 shrink-0">{l.time}</span>
               <span className="text-ivory-700 shrink-0 w-28 truncate">[{l.agent}]</span>

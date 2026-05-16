@@ -297,14 +297,19 @@ rotation_engine = SectorRotationEngine()
 async def lifespan(app: FastAPI):
     # Start background WebSocket broadcast
     task = asyncio.create_task(broadcast_loop())
-    # Start luxury post scheduler
+    # Start luxury post scheduler + agent activity simulation
+    luxury_tasks = []
     try:
-        from luxury.scheduler import start_scheduler, stop_scheduler
+        from luxury.scheduler import start_scheduler
+        from luxury.websocket_manager import simulate_agent_activity
         start_scheduler()
+        luxury_tasks.append(asyncio.create_task(simulate_agent_activity()))
     except Exception:
         pass
     yield
     task.cancel()
+    for t in luxury_tasks:
+        t.cancel()
     try:
         from luxury.scheduler import stop_scheduler
         stop_scheduler()

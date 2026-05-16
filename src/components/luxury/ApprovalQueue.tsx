@@ -5,7 +5,9 @@ import {
   CheckCircle, XCircle, Edit3, Clock, Calendar, Send,
   Image, Film, Layers, Heart, Eye, Hash, MessageSquare,
   ArrowRight, Crown, Sparkles, AlertCircle, ChevronDown,
+  RefreshCw,
 } from "lucide-react";
+import { useContentQueue } from "@/lib/useLuxuryAgent";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 type ContentItem = {
@@ -124,30 +126,86 @@ function ScorePill({ score }: { score: number }) {
   );
 }
 
+// ─── Helpers to map API ContentItem → local display shape ────────────────────
+function apiToDisplay(item: {
+  id: string; type: string; title: string; caption: string; hashtags: string;
+  hook?: string; scheduled_for?: string; brand: string; quality_score: number;
+  engagement_prediction: string; reach_prediction: string; status: string;
+}): ContentItem {
+  const BG_GRADS: Record<string, string> = {
+    photo: "from-slate-900 via-gray-900 to-slate-900",
+    reel:  "from-zinc-900 via-stone-900 to-zinc-900",
+    story: "from-neutral-900 via-stone-900 to-neutral-900",
+  };
+  return {
+    id: parseInt(item.id) || Math.random() * 1e9,
+    type: item.type as ContentItem["type"],
+    title: item.title,
+    caption: item.caption,
+    hashtags: item.hashtags,
+    hook: item.hook ?? "",
+    scheduledFor: item.scheduled_for ?? "TBD",
+    generatedBy: "AI Agents",
+    qualityScore: item.quality_score,
+    engPrediction: item.engagement_prediction,
+    reachPrediction: item.reach_prediction,
+    brand: item.brand,
+    bgGrad: BG_GRADS[item.type] ?? BG_GRADS.photo,
+    status: item.status as ContentItem["status"],
+  };
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────────
 export default function ApprovalQueue() {
-  const [items, setItems] = useState<ContentItem[]>(INITIAL_QUEUE);
+  // Real backend queue — falls back to mock data when backend is unavailable
+  const { items: apiItems, stats, loading, approve: apiApprove, reject: apiReject, edit: apiEdit, refresh } = useContentQueue();
+
+  // Local state mirrors (optimistic UI + mock fallback)
+  const [localItems, setLocalItems] = useState<ContentItem[]>(INITIAL_QUEUE);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editCaption, setEditCaption] = useState("");
 
-  const pending = items.filter(i => i.status === "pending");
-  const approved = items.filter(i => i.status === "approved");
-  const rejected = items.filter(i => i.status === "rejected");
+  // Prefer live API items; fall back to local mock
+  const displayItems: ContentItem[] =
+    !loading && apiItems.length > 0
+      ? apiItems.map(apiToDisplay)
+      : localItems;
 
-  const approve = (id: number) =>
-    setItems(prev => prev.map(i => i.id === id ? { ...i, status: "approved" } : i));
+  const pending  = displayItems.filter(i => i.status === "pending");
+  const approved = displayItems.filter(i => i.status === "approved");
+  const rejected = displayItems.filter(i => i.status === "rejected");
 
-  const reject = (id: number) =>
-    setItems(prev => prev.map(i => i.id === id ? { ...i, status: "rejected" } : i));
+  const approve = async (id: number) => {
+    const apiItem = apiItems.find(i => parseInt(i.id) === id);
+    if (apiItem) {
+      await apiApprove(apiItem.id).catch(() => {});
+    } else {
+      setLocalItems(prev => prev.map(i => i.id === id ? { ...i, status: "approved" } : i));
+    }
+  };
+
+  const reject = async (id: number) => {
+    const apiItem = apiItems.find(i => parseInt(i.id) === id);
+    if (apiItem) {
+      await apiReject(apiItem.id).catch(() => {});
+    } else {
+      setLocalItems(prev => prev.map(i => i.id === id ? { ...i, status: "rejected" } : i));
+    }
+  };
 
   const startEdit = (item: ContentItem) => {
     setEditingId(item.id);
     setEditCaption(item.caption);
   };
 
-  const saveEdit = (id: number) => {
-    setItems(prev => prev.map(i => i.id === id ? { ...i, caption: editCaption } : i));
+  const saveEdit = async (id: number) => {
+    const apiItem = apiItems.find(i => parseInt(i.id) === id);
+    if (apiItem) {
+      await apiEdit({ content_id: apiItem.id, action: "edit", edited_caption: editCaption }).catch(() => {});
+    } else {
+      setLocalItems(prev => prev.map(i => i.id === id ? { ...i, caption: editCaption } : i));
+    }
     setEditingId(null);
   };
 
@@ -164,6 +222,10 @@ export default function ApprovalQueue() {
           <p className="text-xs text-ivory-700 mt-1 font-mono">Final review before posting · Your approval is the only human step required</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => refresh()} title="Refresh from backend"
+            className="p-2 rounded-lg bg-bg-secondary border border-bg-border hover:border-gold-700/30 transition-colors">
+            <RefreshCw className="w-3.5 h-3.5 text-ivory-600" />
+          </button>
           <div className="px-3 py-2 rounded-lg bg-gold-600/10 border border-gold-700/20 text-center">
             <div className="text-lg font-bold text-gold-400 font-display">{pending.length}</div>
             <div className="text-[10px] text-ivory-700 uppercase">Awaiting</div>
@@ -188,7 +250,7 @@ export default function ApprovalQueue() {
 
       {/* Content cards */}
       <div className="space-y-4">
-        {items.map(item => (
+        {displayItems.map(item => (
           <div key={item.id}
             className={`card-glass rounded-xl overflow-hidden border transition-all ${
               item.status === "approved" ? "border-signal-bull/30 opacity-80" :
@@ -336,9 +398,9 @@ export default function ApprovalQueue() {
       {/* Footer stats */}
       <div className="grid grid-cols-3 gap-3 pt-2">
         {[
-          { label: "Total in Queue",  value: items.length,    color: "text-ivory-300" },
-          { label: "Approved",        value: approved.length, color: "text-signal-bull" },
-          { label: "Rejected",        value: rejected.length, color: "text-signal-bear" },
+          { label: "Total in Queue",  value: displayItems.length, color: "text-ivory-300" },
+          { label: "Approved",        value: approved.length,     color: "text-signal-bull" },
+          { label: "Rejected",        value: rejected.length,     color: "text-signal-bear" },
         ].map(s => (
           <div key={s.label} className="card-glass rounded-xl p-4 text-center">
             <div className={`text-2xl font-bold font-display ${s.color}`}>{s.value}</div>

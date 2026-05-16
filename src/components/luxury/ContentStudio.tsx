@@ -4,8 +4,9 @@ import { useState } from "react";
 import {
   Wand2, Camera, Film, Layers, Type, Copy, RefreshCw,
   Sparkles, Image, Play, ChevronDown, Plus, CheckCircle,
-  Clock, Zap, Star, Crown, Hash, Send,
+  Clock, Zap, Star, Crown, Hash, Send, Loader2,
 } from "lucide-react";
+import { useLuxuryPrompt } from "@/lib/useLuxuryAgent";
 
 // ─── Mock data ─────────────────────────────────────────────────────────────
 const CONTENT_TYPES = [
@@ -113,6 +114,25 @@ export default function ContentStudio() {
   const [lighting, setLighting] = useState(LIGHTING[0]);
   const [tab, setTab] = useState<"builder" | "queue" | "library">("builder");
   const [copied, setCopied] = useState<number | null>(null);
+
+  const { loading: genLoading, result: genResult, generate } = useLuxuryPrompt();
+
+  // Effective options: backend result when available, else first static item
+  const previewPrompt = genResult?.image_prompt ?? GENERATED_PROMPTS[0].prompt;
+  const previewCaption = genResult?.caption ?? GENERATED_PROMPTS[0].caption;
+  const previewHashtags = genResult?.hashtags ?? GENERATED_PROMPTS[0].hashtags;
+  const previewHook = genResult?.hook ?? GENERATED_PROMPTS[0].hook;
+  const qualityScore = genResult?.quality_score;
+
+  const handleGenerate = () => {
+    generate({
+      content_type: activeType as "photo" | "reel" | "story" | "caption",
+      location,
+      outfit,
+      mood,
+      lighting,
+    });
+  };
 
   const handleCopy = (id: number, text: string) => {
     navigator.clipboard.writeText(text).catch(() => {});
@@ -222,10 +242,14 @@ export default function ContentStudio() {
               </div>
             </div>
 
-            <button className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-sm transition-all"
+            <button
+              onClick={handleGenerate}
+              disabled={genLoading}
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               style={{ background: "linear-gradient(135deg, #DAA520, #8B6914)", color: "#070708" }}>
-              <Wand2 className="w-4 h-4" />
-              Generate Premium Prompt + Content
+              {genLoading
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</>
+                : <><Wand2 className="w-4 h-4" /> Generate Premium Prompt + Content</>}
             </button>
           </div>
 
@@ -236,13 +260,18 @@ export default function ContentStudio() {
                 <Sparkles className="w-4 h-4 text-gold-500" /> Live Prompt Preview
               </h3>
               <button className="flex items-center gap-1.5 text-[10px] text-gold-400 hover:text-gold-300 transition-colors"
-                onClick={() => handleCopy(0, GENERATED_PROMPTS[0].prompt)}>
+                onClick={() => handleCopy(0, previewPrompt)}>
                 {copied === 0 ? <CheckCircle className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                 {copied === 0 ? "Copied" : "Copy"}
               </button>
             </div>
             <div className="p-4 rounded-lg bg-bg-secondary border border-bg-border font-mono text-[11px] text-ivory-400 leading-relaxed min-h-32">
-              Hyper realistic luxury male model <span className="text-gold-400">ZEPHYR VALE</span>, same consistent face, sharp jawline, deep-set hunter eyes, natural skin texture with visible pores, wearing <span className="text-blue-400">{outfit}</span>, at <span className="text-purple-400">{location}</span>, <span className="text-teal-400">{lighting}</span>, {mood.toLowerCase()} expression, cinematic depth of field, Sony A7R V realism, Vogue editorial composition, premium masculine aura, 8K ultra detail, GQ fashion magazine quality.
+              {genResult
+                ? previewPrompt
+                : <>Hyper realistic luxury male model <span className="text-gold-400">ZEPHYR VALE</span>, same consistent face, sharp jawline, deep-set hunter eyes, natural skin texture with visible pores, wearing <span className="text-blue-400">{outfit}</span>, at <span className="text-purple-400">{location}</span>, <span className="text-teal-400">{lighting}</span>, {mood.toLowerCase()} expression, cinematic depth of field, Sony A7R V realism, Vogue editorial composition, premium masculine aura, 8K ultra detail, GQ fashion magazine quality.</>}
+              {qualityScore && (
+                <div className="mt-2 text-[10px] text-signal-bull font-sans">Quality Score: {qualityScore}/100</div>
+              )}
             </div>
 
             {/* Negative prompt */}
@@ -260,14 +289,14 @@ export default function ContentStudio() {
                   <div className="text-[10px] text-ivory-700 uppercase tracking-wider flex items-center gap-1">
                     <Type className="w-3 h-3" /> Caption
                   </div>
-                  <button onClick={() => handleCopy(1, GENERATED_PROMPTS[0].caption)}
+                  <button onClick={() => handleCopy(1, previewCaption)}
                     className="flex items-center gap-1 text-[9px] text-gold-500 hover:text-gold-300">
                     {copied === 1 ? <CheckCircle className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5" />}
                     {copied === 1 ? "Copied" : "Copy"}
                   </button>
                 </div>
                 <div className="p-3 rounded-lg bg-bg-secondary border border-bg-border text-xs text-ivory-400 leading-relaxed">
-                  {GENERATED_PROMPTS[0].caption}
+                  {previewCaption}
                 </div>
               </div>
               <div>
@@ -275,14 +304,14 @@ export default function ContentStudio() {
                   <div className="text-[10px] text-ivory-700 uppercase tracking-wider flex items-center gap-1">
                     <Hash className="w-3 h-3" /> Hashtags
                   </div>
-                  <button onClick={() => handleCopy(2, GENERATED_PROMPTS[0].hashtags)}
+                  <button onClick={() => handleCopy(2, previewHashtags)}
                     className="flex items-center gap-1 text-[9px] text-gold-500 hover:text-gold-300">
                     {copied === 2 ? <CheckCircle className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5" />}
                     {copied === 2 ? "Copied" : "Copy"}
                   </button>
                 </div>
                 <div className="p-3 rounded-lg bg-bg-secondary border border-bg-border text-[10px] text-gold-600/80 font-mono leading-relaxed">
-                  {GENERATED_PROMPTS[0].hashtags}
+                  {previewHashtags}
                 </div>
               </div>
             </div>
