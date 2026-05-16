@@ -1,44 +1,56 @@
 "use client";
 import { useState } from "react";
-import { Layers, Plus, Trash2, RefreshCw, TrendingUp, Shield, BarChart2 } from "lucide-react";
-import { stockData, sectorData } from "@/lib/mockData";
-import { cn, fmt, fmtPct, fmtCr, colorFromChange, scoreColor, scoreBg } from "@/lib/utils";
+import { Layers, Trash2, RefreshCw, TrendingUp, TrendingDown, Loader2 } from "lucide-react";
+import { cn, fmt, fmtPct, colorFromChange, scoreColor, scoreBg } from "@/lib/utils";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis } from "recharts";
+import { usePortfolio } from "@/hooks/useAngelData";
+import { calcAIScore, getSector, type HoldingRow } from "@/lib/angelData";
 
-type PortfolioStock = { symbol: string; name: string; sector: string; weight: number; price: number; aiScore: number; changePct: number };
-
-const defaultPortfolio: PortfolioStock[] = [
-  { symbol: "HAL", name: "Hindustan Aeronautics", sector: "Defence", weight: 20, price: 4842.35, aiScore: 94, changePct: 3.95 },
-  { symbol: "TCS", name: "Tata Consultancy", sector: "IT", weight: 15, price: 4284.60, aiScore: 88, changePct: 2.99 },
-  { symbol: "SUNPHARMA", name: "Sun Pharma", sector: "Pharma", weight: 12, price: 1842.40, aiScore: 82, changePct: 2.37 },
-  { symbol: "RVNL", name: "Rail Vikas Nigam", sector: "Railway", weight: 12, price: 584.20, aiScore: 86, changePct: 4.43 },
-  { symbol: "DLF", name: "DLF Limited", sector: "Realty", weight: 10, price: 924.60, aiScore: 78, changePct: 3.17 },
-  { symbol: "TATAMOTORS", name: "Tata Motors", sector: "Auto", weight: 10, price: 1024.80, aiScore: 80, changePct: 3.26 },
-  { symbol: "HDFCBANK", name: "HDFC Bank", sector: "Banking", weight: 11, price: 1784.60, aiScore: 64, changePct: -0.69 },
-  { symbol: "Cash", name: "Cash & Equivalents", sector: "Cash", weight: 10, price: 1, aiScore: 0, changePct: 0 },
-];
-
-const COLORS = ["#DC143C", "#00E676", "#00BCD4", "#7C4DFF", "#FFB300", "#FF5722", "#4DB6AC", "#757575"];
-
-const sectorAllocationData = [
-  { sector: "Defence", weight: 20 },
-  { sector: "IT", weight: 15 },
-  { sector: "Railway", weight: 12 },
-  { sector: "Pharma", weight: 12 },
-  { sector: "Banking", weight: 11 },
-  { sector: "Auto", weight: 10 },
-  { sector: "Realty", weight: 10 },
-  { sector: "Cash", weight: 10 },
-];
+const COLORS = ["#DC143C", "#00E676", "#00BCD4", "#7C4DFF", "#FFB300", "#FF5722", "#4DB6AC", "#9E9E9E", "#E91E63", "#8BC34A"];
 
 export default function AIPortfolio() {
-  const [portfolio, setPortfolio] = useState<PortfolioStock[]>(defaultPortfolio);
-  const [activeTab, setActiveTab] = useState<"portfolio" | "builder" | "risk">("portfolio");
+  const { holdings, positions, loading, hasSession, refresh } = usePortfolio();
+  const [activeTab, setActiveTab] = useState<"portfolio" | "positions" | "risk">("portfolio");
 
-  const totalWeight = portfolio.reduce((s, p) => s + p.weight, 0);
-  const weightedReturn = portfolio.reduce((s, p) => s + (p.changePct * p.weight / 100), 0);
-  const avgAIScore = Math.round(portfolio.filter(p => p.symbol !== "Cash").reduce((s, p) => s + p.aiScore, 0) / (portfolio.length - 1));
-  const portfolioValue = 1000000; // ₹10L base
+  const totalValue = holdings.reduce((s, h) => s + h.currentValue, 0);
+  const totalPnL = holdings.reduce((s, h) => s + h.pnl, 0);
+  const totalInvested = holdings.reduce((s, h) => s + h.investedValue, 0);
+  const totalPnLPct = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0;
+
+  // Sector allocation from real holdings
+  const sectorMap: Record<string, number> = {};
+  holdings.forEach(h => {
+    const sec = getSector(h.symbol);
+    sectorMap[sec] = (sectorMap[sec] ?? 0) + h.currentValue;
+  });
+  const sectorData = Object.entries(sectorMap)
+    .map(([sector, value]) => ({ sector, weight: totalValue > 0 ? (value / totalValue) * 100 : 0 }))
+    .sort((a, b) => b.weight - a.weight);
+
+  // Risk metrics from real data
+  const maxWeight = holdings.length > 0 ? Math.max(...holdings.map(h => h.weight)) : 0;
+  const maxPnLPct = holdings.length > 0 ? Math.max(...holdings.map(h => Math.abs(h.pnlPct))) : 0;
+  const positiveHoldings = holdings.filter(h => h.pnl >= 0).length;
+  const winRate = holdings.length > 0 ? (positiveHoldings / holdings.length) * 100 : 0;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64 gap-3">
+        <Loader2 className="w-5 h-5 animate-spin text-maroon-500" />
+        <span className="text-xs text-ivory-600">Loading portfolio from Angel One...</span>
+      </div>
+    );
+  }
+
+  if (!hasSession) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
+        <Layers className="w-8 h-8 text-ivory-600" />
+        <p className="text-sm text-ivory-400">Connect Angel One to see your real portfolio</p>
+        <p className="text-xs text-ivory-600">Click "CONNECT ANGEL" in the header</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -46,190 +58,203 @@ export default function AIPortfolio() {
         <div>
           <h2 className="text-lg font-display font-bold text-ivory-100 flex items-center gap-2">
             <Layers className="w-5 h-5 text-maroon-600" />
-            AI Portfolio Builder
+            Portfolio
           </h2>
-          <p className="text-xs text-ivory-500">Smart money-weighted portfolio construction and optimization</p>
+          <p className="text-xs text-ivory-500 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-signal-bull live-dot inline-block" />
+            Live data from Angel One SmartAPI
+          </p>
         </div>
-        <span className="label-tag bg-signal-accumulate/15 text-signal-accumulate">AI Optimized</span>
+        <button
+          onClick={refresh}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-maroon-800/30 border border-maroon-800/50 text-xs text-maroon-300 hover:bg-maroon-800/50 transition-colors"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Refresh
+        </button>
       </div>
 
-      {/* Portfolio KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { label: "Portfolio Value", value: `₹${(portfolioValue / 100000).toFixed(2)}L`, color: "text-ivory-100" },
-          { label: "Daily P&L", value: `${fmtPct(weightedReturn)}`, color: weightedReturn >= 0 ? "text-signal-bull" : "text-signal-bear" },
-          { label: "AI Portfolio Score", value: avgAIScore, color: scoreColor(avgAIScore) },
-          { label: "Total Exposure", value: `${totalWeight}%`, color: totalWeight === 100 ? "text-signal-bull" : "text-yellow-400" },
-        ].map(k => (
-          <div key={k.label} className="card-glass rounded-xl p-3 text-center">
-            <div className={cn("text-xl font-mono font-bold", k.color)}>{k.value}</div>
-            <div className="text-xs text-ivory-500">{k.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-bg-border pb-0.5">
-        {[
-          { id: "portfolio", label: "Holdings" },
-          { id: "builder", label: "AI Builder" },
-          { id: "risk", label: "Risk Analysis" },
-        ].map(t => (
-          <button
-            key={t.id}
-            onClick={() => setActiveTab(t.id as typeof activeTab)}
-            className={cn(
-              "px-3 py-2 text-xs font-semibold border-b-2 -mb-0.5 transition-colors",
-              activeTab === t.id ? "text-maroon-400 border-maroon-700" : "text-ivory-600 border-transparent hover:text-ivory-300"
-            )}
-          >{t.label}</button>
-        ))}
-      </div>
-
-      {activeTab === "portfolio" && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Pie Chart */}
-            <div className="card-glass rounded-xl p-4">
-              <div className="text-xs font-semibold text-ivory-400 uppercase tracking-wider mb-2">Sector Allocation</div>
-              <div className="h-44">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={sectorAllocationData} cx="50%" cy="50%"
-                      innerRadius={40} outerRadius={65} paddingAngle={2} dataKey="weight">
-                      {sectorAllocationData.map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} fillOpacity={0.85} />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={{ background: "#111114", border: "1px solid #1E1E24", borderRadius: "8px", fontSize: "11px" }}
-                      formatter={(v: number) => [`${v}%`, "Weight"]} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Holdings table */}
-            <div className="md:col-span-2 card-glass rounded-xl overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[500px]">
-                  <thead>
-                    <tr className="border-b border-bg-border">
-                      {["Symbol", "Weight", "Price", "Day P&L", "AI Score", "Action"].map(h => (
-                        <th key={h} className="px-3 py-2 text-left text-[10px] text-ivory-600 uppercase tracking-wider">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {portfolio.map(p => (
-                      <tr key={p.symbol} className="border-b border-bg-border/50 hover:bg-bg-hover">
-                        <td className="px-3 py-2.5">
-                          <div className="font-mono font-bold text-xs text-ivory-100">{p.symbol}</div>
-                          <div className="text-[10px] text-ivory-600">{p.sector}</div>
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <div className="flex items-center gap-2">
-                            <div className="w-12 h-1.5 bg-bg-border rounded-full overflow-hidden">
-                              <div className="h-full bg-maroon-700 rounded-full" style={{ width: `${p.weight}%` }} />
-                            </div>
-                            <span className="text-xs font-mono text-ivory-200">{p.weight}%</span>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2.5 font-mono text-xs text-ivory-200">
-                          {p.price > 1 ? `₹${fmt(p.price)}` : "—"}
-                        </td>
-                        <td className={cn("px-3 py-2.5 font-mono text-xs", colorFromChange(p.changePct))}>
-                          {p.symbol !== "Cash" ? fmtPct(p.changePct) : "—"}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          {p.symbol !== "Cash" ? (
-                            <span className={cn("text-xs font-mono font-bold", scoreColor(p.aiScore))}>{p.aiScore}</span>
-                          ) : "—"}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <button
-                            onClick={() => setPortfolio(prev => prev.filter(x => x.symbol !== p.symbol))}
-                            className="text-ivory-600 hover:text-signal-bear transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === "builder" && (
-        <div className="space-y-4">
-          <div className="card-glass rounded-xl p-4">
-            <div className="text-xs font-semibold text-ivory-400 uppercase tracking-wider mb-3">AI Portfolio Recommendations</div>
-            <div className="space-y-3">
-              {[
-                { action: "INCREASE", symbol: "HAL", reason: "Defence sector leadership. Smart money aggressively accumulating. Raise to 25%.", target: 25, current: 20, color: "text-signal-bull" },
-                { action: "ADD", symbol: "INFY", reason: "IT sector rotation accelerating. Valuation attractive vs TCS. Consider adding 8%.", target: 8, current: 0, color: "text-signal-bull" },
-                { action: "REDUCE", symbol: "HDFCBANK", reason: "Banking underperforming. Capital rotation out of banks into IT/Defence.", target: 6, current: 11, color: "text-yellow-400" },
-                { action: "EXIT", symbol: "Cash", reason: "Deploy 5% cash into Defence/IT on next dip. Market regime risk-on.", target: 5, current: 10, color: "text-signal-accumulate" },
-              ].map(r => (
-                <div key={r.symbol} className="flex items-start gap-3 p-3 bg-bg-secondary rounded-lg border border-bg-border">
-                  <span className={cn("label-tag flex-shrink-0 mt-0.5", r.color.replace("text-", "bg-") + "/15 " + r.color)}>
-                    {r.action}
-                  </span>
-                  <div className="flex-1">
-                    <span className="font-mono font-bold text-xs text-ivory-100 mr-2">{r.symbol}</span>
-                    <span className="text-xs text-ivory-400">{r.reason}</span>
-                    {r.current !== r.target && (
-                      <div className="text-[10px] text-ivory-600 mt-0.5 font-mono">
-                        {r.current}% → {r.target}%
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button className="w-full mt-3 py-2 rounded-lg bg-maroon-800/40 border border-maroon-800/50 text-xs text-maroon-300 font-semibold hover:bg-maroon-800/60 transition-colors">
-              Apply AI Recommendations
-            </button>
-          </div>
-        </div>
-      )}
-
-      {activeTab === "risk" && (
-        <div className="space-y-4">
+      {/* KPIs */}
+      {holdings.length > 0 ? (
+        <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { label: "Portfolio Beta", value: "0.92", color: "text-signal-bull", desc: "Below market (1.0)" },
-              { label: "Sharpe Ratio", value: "2.14", color: "text-signal-bull", desc: "Excellent risk-adjusted" },
-              { label: "Max Drawdown", value: "-12.4%", color: "text-yellow-400", desc: "12M historical" },
-              { label: "Value at Risk", value: "-4.2%", color: "text-signal-bear", desc: "95% confidence, 1D" },
-            ].map(r => (
-              <div key={r.label} className="card-glass rounded-xl p-3 text-center">
-                <div className={cn("text-xl font-mono font-bold", r.color)}>{r.value}</div>
-                <div className="text-xs text-ivory-300 font-semibold mt-0.5">{r.label}</div>
-                <div className="text-[10px] text-ivory-600">{r.desc}</div>
+              { label: "Portfolio Value", value: `₹${totalValue >= 100000 ? (totalValue / 100000).toFixed(2) + "L" : fmt(totalValue)}`, color: "text-ivory-100" },
+              { label: "Total P&L", value: `${totalPnL >= 0 ? "+" : ""}₹${fmt(Math.abs(totalPnL))} (${fmtPct(totalPnLPct)})`, color: totalPnL >= 0 ? "text-signal-bull" : "text-signal-bear" },
+              { label: "Holdings", value: holdings.length, color: "text-ivory-100" },
+              { label: "Win Rate", value: `${winRate.toFixed(0)}%`, color: winRate >= 60 ? "text-signal-bull" : winRate >= 40 ? "text-yellow-400" : "text-signal-bear" },
+            ].map(k => (
+              <div key={k.label} className="card-glass rounded-xl p-3 text-center">
+                <div className={cn("text-lg font-mono font-bold", k.color)}>{k.value}</div>
+                <div className="text-xs text-ivory-500">{k.label}</div>
               </div>
             ))}
           </div>
-          <div className="card-glass rounded-xl p-4">
-            <div className="text-xs font-semibold text-ivory-400 uppercase tracking-wider mb-3">Sector Concentration Risk</div>
-            <div className="space-y-2">
-              {sectorAllocationData.map((s, i) => (
-                <div key={s.sector} className="flex items-center gap-3">
-                  <div className="w-20 text-xs text-ivory-500 flex-shrink-0">{s.sector}</div>
-                  <div className="flex-1 h-2 bg-bg-border rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${s.weight}%`, background: COLORS[i % COLORS.length] }} />
-                  </div>
-                  <div className="text-xs font-mono text-ivory-300 w-10 text-right">{s.weight}%</div>
-                  <div className={cn("text-[10px] w-16", s.weight > 20 ? "text-signal-bear" : s.weight > 15 ? "text-yellow-400" : "text-signal-bull")}>
-                    {s.weight > 20 ? "HIGH CONC" : s.weight > 15 ? "MODERATE" : "HEALTHY"}
-                  </div>
-                </div>
-              ))}
-            </div>
+
+          {/* Tabs */}
+          <div className="flex gap-2 border-b border-bg-border pb-0.5">
+            {[
+              { id: "portfolio", label: "Holdings" },
+              { id: "positions", label: `Positions${positions.length > 0 ? ` (${positions.length})` : ""}` },
+              { id: "risk", label: "Risk Analysis" },
+            ].map(t => (
+              <button
+                key={t.id}
+                onClick={() => setActiveTab(t.id as typeof activeTab)}
+                className={cn(
+                  "px-3 py-2 text-xs font-semibold border-b-2 -mb-0.5 transition-colors",
+                  activeTab === t.id ? "text-maroon-400 border-maroon-700" : "text-ivory-600 border-transparent hover:text-ivory-300"
+                )}
+              >{t.label}</button>
+            ))}
           </div>
+
+          {activeTab === "portfolio" && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Sector Pie */}
+              <div className="card-glass rounded-xl p-4">
+                <div className="text-xs font-semibold text-ivory-400 uppercase tracking-wider mb-2">Sector Allocation</div>
+                <div className="h-44">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={sectorData} cx="50%" cy="50%" innerRadius={38} outerRadius={62} paddingAngle={2} dataKey="weight">
+                        {sectorData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} fillOpacity={0.85} />)}
+                      </Pie>
+                      <Tooltip contentStyle={{ background: "#111114", border: "1px solid #1E1E24", borderRadius: "8px", fontSize: "11px" }}
+                        formatter={(v: number, _: any, p: any) => [`${v.toFixed(1)}%`, p.payload.sector]} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="space-y-1 mt-1">
+                  {sectorData.slice(0, 4).map((s, i) => (
+                    <div key={s.sector} className="flex items-center gap-2 text-[10px]">
+                      <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: COLORS[i % COLORS.length] }} />
+                      <span className="text-ivory-500 flex-1">{s.sector}</span>
+                      <span className="font-mono text-ivory-300">{s.weight.toFixed(1)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Holdings Table */}
+              <div className="md:col-span-2 card-glass rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[500px]">
+                    <thead>
+                      <tr className="border-b border-bg-border">
+                        {["Symbol", "Qty", "Avg Price", "LTP", "P&L", "Weight"].map(h => (
+                          <th key={h} className="px-3 py-2 text-left text-[10px] text-ivory-600 uppercase tracking-wider">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {holdings.sort((a, b) => b.currentValue - a.currentValue).map(h => (
+                        <tr key={h.symbol} className="border-b border-bg-border/50 hover:bg-bg-hover">
+                          <td className="px-3 py-2.5">
+                            <div className="font-mono font-bold text-xs text-ivory-100">{h.symbol}</div>
+                            <div className="text-[10px] text-ivory-600">{getSector(h.symbol)}</div>
+                          </td>
+                          <td className="px-3 py-2.5 font-mono text-xs text-ivory-300">{h.qty}</td>
+                          <td className="px-3 py-2.5 font-mono text-xs text-ivory-400">₹{fmt(h.avgPrice)}</td>
+                          <td className="px-3 py-2.5 font-mono text-xs text-ivory-100">₹{fmt(h.ltp)}</td>
+                          <td className={cn("px-3 py-2.5 font-mono text-xs", h.pnl >= 0 ? "text-signal-bull" : "text-signal-bear")}>
+                            {h.pnl >= 0 ? "+" : ""}₹{fmt(Math.abs(h.pnl))}
+                            <div className="text-[9px] opacity-70">{fmtPct(h.pnlPct)}</div>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <div className="flex items-center gap-2">
+                              <div className="w-10 h-1.5 bg-bg-border rounded-full overflow-hidden">
+                                <div className="h-full bg-maroon-700 rounded-full" style={{ width: `${Math.min(h.weight, 100)}%` }} />
+                              </div>
+                              <span className="text-xs font-mono text-ivory-400">{h.weight.toFixed(1)}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "positions" && (
+            <div className="card-glass rounded-xl overflow-hidden">
+              {positions.length === 0 ? (
+                <div className="h-32 flex items-center justify-center text-ivory-600 text-sm">No open positions today</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[500px]">
+                    <thead>
+                      <tr className="border-b border-bg-border">
+                        {["Symbol", "Qty", "Avg Price", "LTP", "P&L", "Type"].map(h => (
+                          <th key={h} className="px-3 py-2 text-left text-[10px] text-ivory-600 uppercase tracking-wider">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {positions.map(p => (
+                        <tr key={p.symbol} className="border-b border-bg-border/50 hover:bg-bg-hover">
+                          <td className="px-3 py-2.5 font-mono font-bold text-xs text-ivory-100">{p.symbol}</td>
+                          <td className={cn("px-3 py-2.5 font-mono text-xs", p.qty > 0 ? "text-signal-bull" : "text-signal-bear")}>{p.qty}</td>
+                          <td className="px-3 py-2.5 font-mono text-xs text-ivory-400">₹{fmt(p.avgPrice)}</td>
+                          <td className="px-3 py-2.5 font-mono text-xs text-ivory-100">₹{fmt(p.ltp)}</td>
+                          <td className={cn("px-3 py-2.5 font-mono text-xs", p.pnl >= 0 ? "text-signal-bull" : "text-signal-bear")}>
+                            {p.pnl >= 0 ? "+" : ""}₹{fmt(Math.abs(p.pnl))}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <span className="label-tag bg-maroon-800/20 text-maroon-400 text-[10px]">{p.productType}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "risk" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { label: "Max Concentration", value: `${maxWeight.toFixed(1)}%`, color: maxWeight > 30 ? "text-signal-bear" : maxWeight > 20 ? "text-yellow-400" : "text-signal-bull", desc: maxWeight > 30 ? "High risk" : "Healthy" },
+                  { label: "Win Rate", value: `${winRate.toFixed(0)}%`, color: winRate >= 60 ? "text-signal-bull" : "text-yellow-400", desc: `${positiveHoldings}/${holdings.length} stocks up` },
+                  { label: "Total P&L", value: fmtPct(totalPnLPct), color: totalPnLPct >= 0 ? "text-signal-bull" : "text-signal-bear", desc: "Since avg buy" },
+                  { label: "Max Single Move", value: `${maxPnLPct.toFixed(1)}%`, color: "text-ivory-300", desc: "Largest holding P&L%" },
+                ].map(r => (
+                  <div key={r.label} className="card-glass rounded-xl p-3 text-center">
+                    <div className={cn("text-xl font-mono font-bold", r.color)}>{r.value}</div>
+                    <div className="text-xs text-ivory-300 font-semibold mt-0.5">{r.label}</div>
+                    <div className="text-[10px] text-ivory-600">{r.desc}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="card-glass rounded-xl p-4">
+                <div className="text-xs font-semibold text-ivory-400 uppercase tracking-wider mb-3">Sector Concentration Risk</div>
+                <div className="space-y-2">
+                  {sectorData.map((s, i) => (
+                    <div key={s.sector} className="flex items-center gap-3">
+                      <div className="w-20 text-xs text-ivory-500 flex-shrink-0">{s.sector}</div>
+                      <div className="flex-1 h-2 bg-bg-border rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${s.weight}%`, background: COLORS[i % COLORS.length] }} />
+                      </div>
+                      <div className="text-xs font-mono text-ivory-300 w-12 text-right">{s.weight.toFixed(1)}%</div>
+                      <div className={cn("text-[10px] w-16", s.weight > 30 ? "text-signal-bear" : s.weight > 20 ? "text-yellow-400" : "text-signal-bull")}>
+                        {s.weight > 30 ? "HIGH" : s.weight > 20 ? "MODERATE" : "OK"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="card-glass rounded-xl p-8 text-center space-y-3">
+          <TrendingUp className="w-10 h-10 text-ivory-600 mx-auto" />
+          <p className="text-sm text-ivory-400">No holdings found in your Angel One account</p>
+          <p className="text-xs text-ivory-600">Holdings will appear here once you have stocks in your Demat account</p>
         </div>
       )}
     </div>

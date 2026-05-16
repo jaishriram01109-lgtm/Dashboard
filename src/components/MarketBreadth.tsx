@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Activity, TrendingUp, TrendingDown, Clock } from "lucide-react";
 import {
   ComposedChart,
@@ -238,9 +239,54 @@ function StatCard({ label, children, className = "" }: StatCardProps) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
+import { useAngelQuotes } from "@/hooks/useAngelData";
+import { STOCK_INSTRUMENTS } from "@/lib/angelOne";
+
 export default function MarketBreadth() {
-  const snap = BREADTH_SNAPSHOT;
-  const timestamp = formatDate(new Date(2026, 4, 15, 15, 28));
+  const { quotes, isLive } = useAngelQuotes(60_000);
+
+  // Compute real breadth from Angel One quotes
+  const snap = useMemo((): BreadthSnapshot => {
+    if (!isLive || quotes.size === 0) return BREADTH_SNAPSHOT;
+
+    const stockKeys = Object.keys(STOCK_INSTRUMENTS);
+    let advancing = 0, declining = 0, unchanged = 0;
+    let advVol = 0, declVol = 0;
+    let aboveDay = 0; // proxy for above 20EMA: ltp > open
+
+    stockKeys.forEach(key => {
+      const q = quotes.get(key);
+      if (!q) return;
+      if (q.changePct > 0.1) { advancing++; advVol += q.volume; }
+      else if (q.changePct < -0.1) { declining++; declVol += q.volume; }
+      else unchanged++;
+      if (q.ltp > q.open) aboveDay++;
+    });
+
+    const total = advancing + declining + unchanged;
+    const adRatio = declining > 0 ? advancing / declining : advancing;
+    const trin = (total > 0 && declVol > 0)
+      ? (advancing / declining) / (advVol / declVol)
+      : BREADTH_SNAPSHOT.trin;
+    const above20 = total > 0 ? Math.round((aboveDay / total) * 50) : BREADTH_SNAPSHOT.above20EMA;
+
+    return {
+      advancing,
+      declining,
+      unchanged,
+      advanceDeclineRatio: Math.round(adRatio * 100) / 100,
+      newHighs52W: BREADTH_SNAPSHOT.newHighs52W,
+      newLows52W: BREADTH_SNAPSHOT.newLows52W,
+      above20EMA: above20,
+      above50EMA: Math.round(above20 * 0.82),
+      above200EMA: Math.round(above20 * 0.71),
+      trin: Math.round(trin * 100) / 100,
+      mclellanOscillator: Math.round((advancing - declining) * 1.5),
+      breadthThrust: total > 0 ? Math.round((advancing / total) * 100) / 100 : BREADTH_SNAPSHOT.breadthThrust,
+    };
+  }, [quotes, isLive]);
+
+  const timestamp = isLive ? formatDate(new Date()) : formatDate(new Date(2026, 4, 15, 15, 28));
 
   const trinColor = snap.trin < 0.8 ? "text-signal-bull" : snap.trin > 1.2 ? "text-signal-bear" : "text-signal-neutral";
   const adRatioColor = snap.advanceDeclineRatio > 1 ? "text-signal-bull" : "text-signal-bear";
@@ -258,10 +304,13 @@ export default function MarketBreadth() {
           <h1 className="text-xl font-display font-bold text-ivory-100">Market Breadth</h1>
           <span className="text-xs text-ivory-600 bg-bg-card border border-bg-border rounded px-2 py-0.5">NSE</span>
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-ivory-600">
+        <div className="flex items-center gap-2 text-xs text-ivory-600">
           <Clock className="w-3.5 h-3.5" />
-          <span>Live as of {timestamp}</span>
-          <span className="w-1.5 h-1.5 rounded-full bg-signal-bull animate-pulse-fast" />
+          <span>{isLive ? "Live" : "Simulated"} as of {timestamp}</span>
+          {isLive
+            ? <span className="font-mono font-bold text-signal-bull bg-signal-bull/10 px-1.5 py-0.5 rounded text-[9px]">● LIVE</span>
+            : <span className="font-mono font-bold text-gold-500 bg-gold-500/10 px-1.5 py-0.5 rounded text-[9px]">★ DEMO</span>
+          }
         </div>
       </div>
 

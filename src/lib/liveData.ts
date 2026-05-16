@@ -1,5 +1,11 @@
 // Sections that have real/live data sources wired up
-export const LIVE_SECTION_IDS = new Set<string>(["home"]);
+export const LIVE_SECTION_IDS = new Set<string>([
+  "home",
+  "portfolio",   // real Angel One holdings
+  "watchlist",   // real Angel One quotes
+  "scanner",     // real Angel One momentum scan
+  "breadth",     // real Angel One A/D data
+]);
 
 import {
   getAngelSession, getAngelQuotes, getAngelCandles,
