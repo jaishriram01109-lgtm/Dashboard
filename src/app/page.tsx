@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import Header from "@/components/Header";
 import MarketTicker from "@/components/MarketTicker";
 import AngelLogin from "@/components/AngelLogin";
-import { getAngelSession, isLoginSkipped } from "@/lib/angelOne";
+import { getAngelSession } from "@/lib/angelOne";
 import Sidebar from "@/components/Sidebar";
 import { alertData } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
@@ -150,7 +150,7 @@ export default function Dashboard() {
     const session = getAngelSession();
     if (session) {
       setAngelActive(true);
-    } else if (!isLoginSkipped()) {
+    } else {
       setShowLogin(true);
     }
   }, []);

@@ -80,6 +80,8 @@ export default function DashboardHome({ onNavigate }: Props) {
   const [chartData, setChartData]   = useState<ChartPoint[]>(MOCK_CHART);
   const [usdInr, setUsdInr]         = useState<number | null>(null);
   const [isLive, setIsLive]         = useState(false);
+  const [loading, setLoading]       = useState(true);
+  const [dataSource, setDataSource] = useState<"angel" | "yahoo" | "simulated">("simulated");
   const [marketOpen, setMarketOpen] = useState(false);
 
   useEffect(() => {
@@ -87,16 +89,27 @@ export default function DashboardHome({ onNavigate }: Props) {
       const now = new Date();
       const ist = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
       const mins = ist.getHours() * 60 + ist.getMinutes();
-      setMarketOpen(mins >= 555 && mins < 930); // 9:15 – 15:30
+      setMarketOpen(mins >= 555 && mins < 930);
     };
     checkMarket();
 
     const load = async () => {
-      const { indices: idxData, isReal, usdInr: usd, chartData: chartPts } = await fetchHomeData();
-      if (idxData.length > 0) setIndices(idxData);
-      if (isReal) setIsLive(true);
-      if (chartPts.length > 5) setChartData(chartPts);
-      if (usd) setUsdInr(usd);
+      setLoading(true);
+      try {
+        const { indices: idxData, isReal, usdInr: usd, chartData: chartPts } = await fetchHomeData();
+        if (idxData.length > 0) setIndices(idxData);
+        if (isReal) {
+          setIsLive(true);
+          // Detect source: Angel One session gives non-yahoo symbols (numeric tokens)
+          const { getAngelSession } = await import("@/lib/angelOne");
+          setDataSource(getAngelSession() ? "angel" : "yahoo");
+        } else {
+          setDataSource("simulated");
+        }
+        if (chartPts.length > 5) setChartData(chartPts);
+        if (usd) setUsdInr(usd);
+      } catch { /* keep mock */ }
+      setLoading(false);
     };
     load();
     const timer = setInterval(load, 60_000);
@@ -121,9 +134,15 @@ export default function DashboardHome({ onNavigate }: Props) {
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${marketOpen ? "bg-signal-bull live-dot" : "bg-ivory-600"}`} />
           <span className="text-[10px] text-ivory-500">Markets {marketOpen ? "Open" : "Closed"}</span>
-          {isLive && (
+          {loading ? (
+            <span className="text-[8px] font-mono text-ivory-600 animate-pulse">loading...</span>
+          ) : isLive ? (
             <span className="text-[8px] font-mono font-bold text-signal-bull bg-signal-bull/10 px-1.5 py-0.5 rounded">
-              ● LIVE
+              ● {dataSource === "angel" ? "ANGEL LIVE" : "YAHOO LIVE"}
+            </span>
+          ) : (
+            <span className="text-[8px] font-mono text-gold-500 bg-gold-500/10 px-1.5 py-0.5 rounded">
+              ★ SIMULATED
             </span>
           )}
         </div>
@@ -232,7 +251,9 @@ export default function DashboardHome({ onNavigate }: Props) {
       {/* Footer */}
       <div className="text-center text-[10px] text-ivory-700 pt-2 border-t border-bg-border">
         SmartFlow AI v2.0.0 · 52 Sections · NSE · BSE · FII/DII · Options · Macro
-        {isLive && <span className="text-signal-bull ml-2">· Data: Yahoo Finance</span>}
+        {dataSource === "angel" && <span className="text-signal-bull ml-2">· Data: Angel One SmartAPI</span>}
+        {dataSource === "yahoo" && <span className="text-signal-bull ml-2">· Data: Yahoo Finance</span>}
+        {dataSource === "simulated" && <span className="text-gold-500 ml-2">· Connect Angel One for live data</span>}
       </div>
     </div>
   );

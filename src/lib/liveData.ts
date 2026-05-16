@@ -108,6 +108,20 @@ async function fetchSingleQuote(sym: { symbol: string; name: string }): Promise<
   } catch { return null; }
 }
 
+function parseV7Batch(data: unknown, nameMap: Record<string, string>): LiveQuote[] {
+  const results: unknown[] = (data as any)?.quoteResponse?.result ?? [];
+  if (!results.length) return [];
+  return results
+    .map((q: any) => ({
+      symbol: q.symbol as string,
+      name: nameMap[q.symbol as string] ?? (q.shortName as string) ?? (q.symbol as string),
+      price: (q.regularMarketPrice as number) ?? 0,
+      change: (q.regularMarketChange as number) ?? 0,
+      changePct: (q.regularMarketChangePercent as number) ?? 0,
+    }))
+    .filter((q: LiveQuote) => q.price > 0);
+}
+
 // Batch-fetch via v7 quote API (fastest — one request for all symbols)
 async function fetchBatchQuotes(
   symbols: { symbol: string; name: string }[]
@@ -115,30 +129,32 @@ async function fetchBatchQuotes(
   const nameMap = Object.fromEntries(symbols.map(s => [s.symbol, s.name]));
   const symsStr = symbols.map(s => s.symbol).join(",");
   const fields = "regularMarketPrice,regularMarketChange,regularMarketChangePercent";
-  const batchUrls = [
+  const directUrls = [
     `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symsStr)}&fields=${fields}`,
     `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symsStr)}&fields=${fields}`,
   ];
 
-  for (const url of batchUrls) {
+  for (const url of directUrls) {
     try {
-      const res = await fetch(url, { cache: "no-store" });
+      const res = await fetch(url, { cache: "no-store", mode: "cors" });
       if (!res.ok) continue;
       const data = await res.json();
-      const results: unknown[] = (data as any)?.quoteResponse?.result ?? [];
-      if (!results.length) continue;
-      const quotes = results
-        .map((q: any) => ({
-          symbol: q.symbol as string,
-          name: nameMap[q.symbol as string] ?? (q.shortName as string) ?? (q.symbol as string),
-          price: (q.regularMarketPrice as number) ?? 0,
-          change: (q.regularMarketChange as number) ?? 0,
-          changePct: (q.regularMarketChangePercent as number) ?? 0,
-        }))
-        .filter((q: LiveQuote) => q.price > 0);
+      const quotes = parseV7Batch(data, nameMap);
       if (quotes.length) return quotes;
     } catch { /* try next */ }
   }
+
+  // Proxy fallback
+  try {
+    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(directUrls[0])}`;
+    const res = await fetch(proxyUrl, { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      const quotes = parseV7Batch(data, nameMap);
+      if (quotes.length) return quotes;
+    }
+  } catch { /* ignore */ }
+
   return [];
 }
 
