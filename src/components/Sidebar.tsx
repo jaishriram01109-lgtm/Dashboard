@@ -180,8 +180,8 @@ export default function Sidebar({ active, onChange, onClose }: SidebarProps) {
           /* Grouped nav */
           GROUPS.map((group) => {
             const items = NAV_ITEMS.filter((i) => i.group === group.id);
-            const isCollapsed = collapsed[group.id] ?? false;
             const hasActive = items.some((i) => i.id === active);
+            const isCollapsed = collapsed[group.id] ?? !hasActive;
             return (
               <div key={group.id}>
                 <button

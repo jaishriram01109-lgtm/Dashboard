@@ -129,6 +129,9 @@ const SECTIONS: Record<string, React.ComponentType> = {
   goals:     GoalPlanner,
 };
 
+// Sections that have real/live data — all others show ★ mock indicator
+const LIVE_SECTIONS = new Set(["home"]);
+
 function isValidSection(id: string) {
   return id === "home" || id in SECTIONS;
 }
@@ -218,13 +221,20 @@ export default function Dashboard() {
 
           <div className="p-3 md:p-6 max-w-screen-2xl mx-auto pb-24 lg:pb-6">
             {activeSection !== "home" && (
-              <button
-                onClick={() => window.history.back()}
-                className="mb-3 inline-flex items-center gap-1.5 text-[11px] text-ivory-500 hover:text-ivory-100 transition-colors font-mono"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                Back
-              </button>
+              <div className="flex items-center justify-between mb-3">
+                <button
+                  onClick={() => window.history.back()}
+                  className="inline-flex items-center gap-1.5 text-[11px] text-ivory-500 hover:text-ivory-100 transition-colors font-mono"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  Back
+                </button>
+                {!LIVE_SECTIONS.has(activeSection) && (
+                  <span className="inline-flex items-center gap-1 text-[10px] text-ivory-700 font-mono">
+                    <span className="text-gold-500">★</span> Simulated data
+                  </span>
+                )}
+              </div>
             )}
             {activeSection === "home" ? (
               <DashboardHome onNavigate={navigateTo} />
