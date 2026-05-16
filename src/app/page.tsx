@@ -6,7 +6,7 @@ import MarketTicker from "@/components/MarketTicker";
 import Sidebar from "@/components/Sidebar";
 import { alertData } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
-import { Menu, X } from "lucide-react";
+import { Menu, X, ArrowLeft } from "lucide-react";
 
 // Lazy load all section components
 const MacroIntelligence = dynamic(() => import("@/components/MacroIntelligence"), { ssr: false });
@@ -217,6 +217,15 @@ export default function Dashboard() {
           </button>
 
           <div className="p-3 md:p-6 max-w-screen-2xl mx-auto pb-24 lg:pb-6">
+            {activeSection !== "home" && (
+              <button
+                onClick={() => window.history.back()}
+                className="mb-3 inline-flex items-center gap-1.5 text-[11px] text-ivory-500 hover:text-ivory-100 transition-colors font-mono"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Back
+              </button>
+            )}
             {activeSection === "home" ? (
               <DashboardHome onNavigate={navigateTo} />
             ) : Section ? (

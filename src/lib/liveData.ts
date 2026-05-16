@@ -16,6 +16,66 @@ export interface LiveQuote {
   changePct: number;
 }
 
+export interface IndexQuote {
+  name: string;
+  symbol: string;
+  value: number;
+  change: number;
+  pct: number;
+}
+
+export interface ChartPoint {
+  t: number;
+  v: number;
+}
+
+const HOME_INDEX_SYMBOLS = [
+  { symbol: "^NSEI",      name: "NIFTY 50",     fallback: 22850.45 },
+  { symbol: "^NSEBANK",   name: "BANK NIFTY",   fallback: 48234.60 },
+  { symbol: "^BSESN",     name: "SENSEX",        fallback: 75432.10 },
+  { symbol: "^CNXIT",     name: "NIFTY IT",      fallback: 38456.30 },
+  { symbol: "^CNXPHARMA", name: "NIFTY PHARMA",  fallback: 21345.80 },
+  { symbol: "^INDIAVIX",  name: "INDIA VIX",     fallback: 13.42    },
+];
+
+export async function fetchHomeIndices(): Promise<IndexQuote[]> {
+  const results = await Promise.allSettled(
+    HOME_INDEX_SYMBOLS.map(async (idx) => {
+      const q = await fetchSingleQuote({ symbol: idx.symbol, name: idx.name });
+      if (!q) return { name: idx.name, symbol: idx.symbol, value: idx.fallback, change: 0, pct: 0 };
+      return { name: idx.name, symbol: idx.symbol, value: q.price, change: q.change, pct: q.changePct };
+    })
+  );
+  return results
+    .filter((r): r is PromiseFulfilledResult<IndexQuote> => r.status === "fulfilled")
+    .map(r => r.value);
+}
+
+export async function fetchNiftyIntraday(): Promise<ChartPoint[]> {
+  try {
+    const res = await fetch(
+      `${YF_V8}/${encodeURIComponent("^NSEI")}?interval=5m&range=1d`,
+      { cache: "no-store" }
+    );
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    const result = data?.chart?.result?.[0];
+    if (!result) throw new Error();
+    const timestamps: number[] = result.timestamp ?? [];
+    const closes: (number | null)[] = result.indicators?.quote?.[0]?.close ?? [];
+    return timestamps
+      .map((_, i) => ({ t: i, v: closes[i] ?? 0 }))
+      .filter(p => p.v > 0);
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchForexRate(symbol: string): Promise<number | null> {
+  const q = await fetchSingleQuote({ symbol, name: symbol });
+  return q ? q.price : null;
+}
+
 export const TICKER_SYMBOLS: { symbol: string; name: string }[] = [
   { symbol: "^NSEI",        name: "NIFTY 50"     },
   { symbol: "^BSESN",       name: "SENSEX"       },

@@ -57,7 +57,7 @@ export default function MarketTicker() {
           ● LIVE
         </span>
       )}
-      <div className="flex whitespace-nowrap animate-[ticker_160s_linear_infinite]">
+      <div className="flex whitespace-nowrap animate-[ticker_240s_linear_infinite]">
         {doubled.map((e, i) => (
           <span key={i} className="inline-flex items-center gap-2 px-4 text-xs font-mono">
             <span className="text-ivory-300 font-semibold tracking-wide">{e.name}</span>

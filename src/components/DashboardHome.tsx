@@ -1,35 +1,29 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { TrendingUp, TrendingDown, Bell, Activity, Brain, BarChart3, Shield, Target, Zap, Globe, PieChart, Search, BookOpen, Calculator, Flag, Eye } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip,
 } from "recharts";
+import {
+  fetchHomeIndices, fetchNiftyIntraday, fetchForexRate,
+  type IndexQuote, type ChartPoint,
+} from "@/lib/liveData";
 
-// ─── Mock live data ───────────────────────────────────────────────────────────
-const INDICES = [
-  { name: "NIFTY 50",    value: 22850.45, change: 187.30, pct: 0.83,  color: "text-signal-bull" },
-  { name: "BANK NIFTY",  value: 48234.60, change: 312.45, pct: 0.65,  color: "text-signal-bull" },
-  { name: "SENSEX",      value: 75432.10, change: 601.20, pct: 0.80,  color: "text-signal-bull" },
-  { name: "NIFTY IT",    value: 38456.30, change: -234.10,pct: -0.61, color: "text-signal-bear" },
-  { name: "NIFTY MID",   value: 43218.80, change: 289.40, pct: 0.67,  color: "text-signal-bull" },
-  { name: "INDIA VIX",   value: 13.42,    change: -0.84,  pct: -5.89, color: "text-signal-bull" },
+// Fallback mock data
+const MOCK_INDICES: IndexQuote[] = [
+  { name: "NIFTY 50",    symbol: "^NSEI",      value: 22850.45, change:  187.30, pct:  0.83 },
+  { name: "BANK NIFTY",  symbol: "^NSEBANK",   value: 48234.60, change:  312.45, pct:  0.65 },
+  { name: "SENSEX",      symbol: "^BSESN",     value: 75432.10, change:  601.20, pct:  0.80 },
+  { name: "NIFTY IT",    symbol: "^CNXIT",     value: 38456.30, change: -234.10, pct: -0.61 },
+  { name: "NIFTY PHARMA",symbol: "^CNXPHARMA", value: 21345.80, change:  289.40, pct:  0.67 },
+  { name: "INDIA VIX",   symbol: "^INDIAVIX",  value: 13.42,    change:   -0.84, pct: -5.89 },
 ];
 
-const niftyMini = Array.from({ length: 20 }, (_, i) => ({
+const MOCK_CHART: ChartPoint[] = Array.from({ length: 20 }, (_, i) => ({
   t: i,
   v: 22600 + Math.round(Math.sin(i * 0.45) * 120 + Math.cos(i * 0.25) * 60 + i * 12),
 }));
-
-const QUICK_STATS = [
-  { label: "FII Net Today",     value: "+₹1,234 Cr", positive: true  },
-  { label: "Active Alerts",     value: "7",           positive: false },
-  { label: "Trade Setups",      value: "6 Active",    positive: true  },
-  { label: "Nifty PCR",         value: "0.92",        positive: true  },
-  { label: "Market Breadth",    value: "32:14",       positive: true  },
-  { label: "IV Percentile",     value: "28th (Low)",  positive: true  },
-  { label: "US 10Y Yield",      value: "4.32%",       positive: false },
-  { label: "USD/INR",           value: "83.42",       positive: false },
-];
 
 const SECTIONS_GRID = [
   { id: "macro",        label: "Macro Intel",        icon: Globe,      group: "MARKET" },
@@ -71,17 +65,55 @@ const SECTIONS_GRID = [
 ];
 
 const GROUP_COLORS: Record<string, string> = {
-  "MARKET":    "border-l-blue-500",
-  "SIGNALS":   "border-l-signal-bull",
-  "F&O":       "border-l-gold-500",
-  "PORTFOLIO": "border-l-maroon-400",
-  "RESEARCH":  "border-l-signal-accumulate",
-  "TOOLS":     "border-l-ivory-600",
+  "MARKET":    "bg-blue-500",
+  "SIGNALS":   "bg-signal-bull",
+  "F&O":       "bg-gold-500",
+  "PORTFOLIO": "bg-maroon-400",
+  "RESEARCH":  "bg-signal-accumulate",
+  "TOOLS":     "bg-ivory-600",
 };
 
 interface Props { onNavigate: (id: string) => void }
 
 export default function DashboardHome({ onNavigate }: Props) {
+  const [indices, setIndices]       = useState<IndexQuote[]>(MOCK_INDICES);
+  const [chartData, setChartData]   = useState<ChartPoint[]>(MOCK_CHART);
+  const [usdInr, setUsdInr]         = useState<number | null>(null);
+  const [isLive, setIsLive]         = useState(false);
+  const [marketOpen, setMarketOpen] = useState(false);
+
+  useEffect(() => {
+    const checkMarket = () => {
+      const now = new Date();
+      const ist = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+      const mins = ist.getHours() * 60 + ist.getMinutes();
+      setMarketOpen(mins >= 555 && mins < 930); // 9:15 – 15:30
+    };
+    checkMarket();
+
+    const load = async () => {
+      const [idxData, chartPts, usd] = await Promise.all([
+        fetchHomeIndices(),
+        fetchNiftyIntraday(),
+        fetchForexRate("USDINR=X"),
+      ]);
+      if (idxData.length > 0) {
+        setIndices(idxData);
+        setIsLive(idxData.some(q => q.value > 0));
+      }
+      if (chartPts.length > 5) setChartData(chartPts);
+      if (usd) setUsdInr(usd);
+    };
+    load();
+    const timer = setInterval(load, 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const nifty = indices[0];
+  const niftyChangeLabel = nifty
+    ? `${nifty.change >= 0 ? "+" : ""}${nifty.change.toFixed(2)} (${nifty.pct >= 0 ? "+" : ""}${nifty.pct.toFixed(2)}%)`
+    : "";
+
   const groups = Array.from(new Set(SECTIONS_GRID.map((s) => s.group)));
 
   return (
@@ -93,18 +125,25 @@ export default function DashboardHome({ onNavigate }: Props) {
           <p className="text-xs text-ivory-500 mt-0.5">Institutional Intelligence Terminal · 52 Modules · NSE · BSE · F&amp;O</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-signal-bull live-dot" />
-          <span className="text-[10px] text-ivory-500">Markets Open</span>
+          <div className={`w-2 h-2 rounded-full ${marketOpen ? "bg-signal-bull live-dot" : "bg-ivory-600"}`} />
+          <span className="text-[10px] text-ivory-500">Markets {marketOpen ? "Open" : "Closed"}</span>
+          {isLive && (
+            <span className="text-[8px] font-mono font-bold text-signal-bull bg-signal-bull/10 px-1.5 py-0.5 rounded">
+              ● LIVE
+            </span>
+          )}
         </div>
       </div>
 
       {/* Live Index Bar */}
       <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-        {INDICES.map((idx) => (
+        {indices.map((idx) => (
           <div key={idx.name} className="card-base p-3">
             <div className="text-[9px] text-ivory-600 uppercase tracking-wider">{idx.name}</div>
-            <div className="text-sm font-bold font-mono text-ivory-100 mt-0.5">{idx.value.toLocaleString()}</div>
-            <div className={`text-[10px] font-semibold mt-0.5 flex items-center gap-1 ${idx.color}`}>
+            <div className="text-sm font-bold font-mono text-ivory-100 mt-0.5">
+              {idx.value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+            </div>
+            <div className={`text-[10px] font-semibold mt-0.5 flex items-center gap-1 ${idx.pct >= 0 ? "text-signal-bull" : "text-signal-bear"}`}>
               {idx.pct >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
               {idx.pct >= 0 ? "+" : ""}{idx.pct.toFixed(2)}%
             </div>
@@ -116,30 +155,49 @@ export default function DashboardHome({ onNavigate }: Props) {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="xl:col-span-2 card-base p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-ivory-300">Nifty 50 — Intraday</span>
-            <span className="text-[10px] text-signal-bull font-semibold">+187.30 (+0.83%)</span>
+            <span className="text-xs font-semibold text-ivory-300">
+              Nifty 50 — {isLive ? "Intraday (5m)" : "Simulated"}
+            </span>
+            <span className={`text-[10px] font-semibold ${nifty && nifty.pct >= 0 ? "text-signal-bull" : "text-signal-bear"}`}>
+              {niftyChangeLabel}
+            </span>
           </div>
           <ResponsiveContainer width="100%" height={100}>
-            <AreaChart data={niftyMini} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+            <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="niftyGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#166534" stopOpacity={0.4} />
+                  <stop offset="5%"  stopColor="#166534" stopOpacity={0.4} />
                   <stop offset="95%" stopColor="#166534" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis dataKey="t" hide />
               <YAxis domain={["auto", "auto"]} hide />
-              <Tooltip contentStyle={{ background: "#1a0a0a", border: "1px solid #4a2020", borderRadius: 6 }} formatter={(v: number) => [v.toLocaleString(), "Nifty"]} />
+              <Tooltip
+                contentStyle={{ background: "#1a0a0a", border: "1px solid #4a2020", borderRadius: 6 }}
+                formatter={(v: number) => [v.toLocaleString("en-IN", { maximumFractionDigits: 2 }), "Nifty"]}
+                labelFormatter={() => ""}
+              />
               <Area dataKey="v" stroke="#166534" fill="url(#niftyGrad)" strokeWidth={2} dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
 
         <div className="grid grid-cols-2 gap-2 content-start">
-          {QUICK_STATS.map(({ label, value, positive }) => (
+          {[
+            { label: "FII Net Today",   value: "+₹1,234 Cr",                                positive: true  },
+            { label: "Active Alerts",   value: "7",                                          positive: false },
+            { label: "Trade Setups",    value: "6 Active",                                   positive: true  },
+            { label: "Nifty PCR",       value: "0.92",                                       positive: true  },
+            { label: "Market Breadth",  value: "32:14",                                      positive: true  },
+            { label: "IV Percentile",   value: "28th (Low)",                                 positive: true  },
+            { label: "US 10Y Yield",    value: "4.32%",                                      positive: false },
+            { label: "USD/INR",         value: usdInr ? usdInr.toFixed(2) : "83.42",        positive: false },
+          ].map(({ label, value, positive }) => (
             <div key={label} className="card-base p-2.5">
               <div className="text-[9px] text-ivory-600 uppercase tracking-wider">{label}</div>
-              <div className={`text-xs font-bold font-mono mt-0.5 ${positive ? "text-signal-bull" : "text-signal-bear"}`}>{value}</div>
+              <div className={`text-xs font-bold font-mono mt-0.5 ${positive ? "text-signal-bull" : "text-signal-bear"}`}>
+                {value}
+              </div>
             </div>
           ))}
         </div>
@@ -147,14 +205,16 @@ export default function DashboardHome({ onNavigate }: Props) {
 
       {/* Quick Navigation Grid */}
       <div>
-        <div className="text-[10px] text-ivory-600 uppercase tracking-widest font-bold mb-3">Quick Navigation — All 52 Modules</div>
+        <div className="text-[10px] text-ivory-600 uppercase tracking-widest font-bold mb-3">
+          Quick Navigation — All 52 Modules
+        </div>
         <div className="space-y-4">
           {groups.map((group) => {
             const items = SECTIONS_GRID.filter((s) => s.group === group);
             return (
               <div key={group}>
                 <div className="text-[9px] text-ivory-700 uppercase tracking-widest font-bold mb-2 flex items-center gap-2">
-                  <span className={`inline-block w-0.5 h-3 rounded ${GROUP_COLORS[group]?.replace("border-l-", "bg-") ?? "bg-ivory-700"}`} />
+                  <span className={`inline-block w-0.5 h-3 rounded ${GROUP_COLORS[group] ?? "bg-ivory-700"}`} />
                   {group}
                 </div>
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-9 gap-2">
@@ -178,6 +238,7 @@ export default function DashboardHome({ onNavigate }: Props) {
       {/* Footer */}
       <div className="text-center text-[10px] text-ivory-700 pt-2 border-t border-bg-border">
         SmartFlow AI v2.0.0 · 52 Sections · NSE · BSE · FII/DII · Options · Macro
+        {isLive && <span className="text-signal-bull ml-2">· Data: Yahoo Finance</span>}
       </div>
     </div>
   );
