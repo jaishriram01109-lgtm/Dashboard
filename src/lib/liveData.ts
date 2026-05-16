@@ -1,6 +1,11 @@
 // Sections that have real/live data sources wired up
 export const LIVE_SECTION_IDS = new Set<string>(["home"]);
 
+import {
+  getAngelSession, getAngelQuotes, getAngelCandles,
+  INDEX_INSTRUMENTS, STOCK_INSTRUMENTS,
+} from "@/lib/angelOne";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface LiveQuote {
   symbol: string;
@@ -139,7 +144,22 @@ async function fetchBatchQuotes(
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 export async function fetchTickerQuotes(): Promise<LiveQuote[]> {
-  // Try batch first (1 request), fall back to individual fetches
+  // Angel One — highest quality
+  const session = getAngelSession();
+  if (session) {
+    const allInst = [
+      ...Object.values(INDEX_INSTRUMENTS).slice(0, 6),
+      ...Object.values(STOCK_INSTRUMENTS).slice(0, 14),
+    ];
+    const quotes = await getAngelQuotes(session, allInst);
+    if (quotes.length >= 8)
+      return quotes.map(q => ({
+        symbol: q.token, name: q.name, price: q.ltp,
+        change: q.change, changePct: q.changePct,
+      }));
+  }
+
+  // Yahoo Finance fallback — batch first
   const batch = await fetchBatchQuotes(TICKER_SYMBOLS);
   if (batch.length >= 8) return batch;
 
@@ -150,7 +170,50 @@ export async function fetchTickerQuotes(): Promise<LiveQuote[]> {
     .filter((v): v is LiveQuote => v !== null);
 }
 
+function formatAngelDate(d: Date, startOfDay: boolean): string {
+  const ist = new Date(d.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+  const y = ist.getFullYear();
+  const mo = String(ist.getMonth() + 1).padStart(2, "0");
+  const dd = String(ist.getDate()).padStart(2, "0");
+  return startOfDay ? `${y}-${mo}-${dd} 09:15` : `${y}-${mo}-${dd} 15:30`;
+}
+
 export async function fetchHomeData(): Promise<HomeData> {
+  // ── Angel One path ────────────────────────────────────────────────────────
+  const session = getAngelSession();
+  if (session) {
+    const homeInst = [
+      INDEX_INSTRUMENTS["NIFTY"],
+      INDEX_INSTRUMENTS["BANKNIFTY"],
+      { token: "1", exchange: "BSE", name: "SENSEX" },
+      INDEX_INSTRUMENTS["NIFTY_IT"],
+      INDEX_INSTRUMENTS["NIFTY_PHARMA"],
+      INDEX_INSTRUMENTS["INDIA_VIX"],
+    ];
+    const [quotes, candles] = await Promise.all([
+      getAngelQuotes(session, homeInst),
+      getAngelCandles(
+        session, "NSE", "26000", "FIVE_MINUTE",
+        formatAngelDate(new Date(), true),
+        formatAngelDate(new Date(), false)
+      ),
+    ]);
+
+    if (quotes.length >= 4) {
+      const indices: IndexQuote[] = quotes.map(q => ({
+        name: q.name, symbol: q.token,
+        value: q.ltp, change: q.change, pct: q.changePct,
+      }));
+      const usdQuote = await fetchSingleQuote({ symbol: "USDINR=X", name: "USD/INR" });
+      return {
+        indices,
+        isReal: true,
+        usdInr: usdQuote?.price ?? null,
+        chartData: candles.length > 5 ? candles.map((c, i) => ({ t: i, v: c.c })) : [],
+      };
+    }
+  }
+  // ── Yahoo Finance path (fallback) ─────────────────────────────────────────
   // Batch-fetch all home indices + USDINR in one call
   const all = [...HOME_INDEX_SYMBOLS, { symbol: "USDINR=X", name: "USD/INR", fallback: 83.42 }];
   const batch = await fetchBatchQuotes(all);

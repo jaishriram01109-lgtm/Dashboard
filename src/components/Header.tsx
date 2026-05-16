@@ -7,9 +7,11 @@ interface HeaderProps {
   unreadCount: number;
   onAlertClick: () => void;
   onNavigate: (id: string) => void;
+  angelActive?: boolean;
+  onAngelLoginClick?: () => void;
 }
 
-export default function Header({ unreadCount, onAlertClick, onNavigate }: HeaderProps) {
+export default function Header({ unreadCount, onAlertClick, onNavigate, angelActive, onAngelLoginClick }: HeaderProps) {
   const [time, setTime] = useState(new Date());
   const [marketOpen, setMarketOpen] = useState(false);
 
@@ -92,6 +94,20 @@ export default function Header({ unreadCount, onAlertClick, onNavigate }: Header
 
       {/* Right */}
       <div className="flex items-center gap-2 flex-shrink-0">
+        {/* Angel One connection badge */}
+        <button
+          onClick={onAngelLoginClick}
+          title={angelActive ? "Angel One connected — click to re-login" : "Click to connect Angel One for live data"}
+          className={cn(
+            "hidden sm:flex items-center gap-1 px-2 py-1 rounded-md border text-[9px] font-mono font-bold transition-colors",
+            angelActive
+              ? "border-signal-bull/40 text-signal-bull bg-signal-bull/10"
+              : "border-gold-500/30 text-gold-500 bg-gold-500/5 hover:border-gold-500/60"
+          )}
+        >
+          <span className={cn("w-1.5 h-1.5 rounded-full", angelActive ? "bg-signal-bull live-dot" : "bg-gold-500")} />
+          {angelActive ? "ANGEL LIVE" : "CONNECT ANGEL"}
+        </button>
         <button
           onClick={onAlertClick}
           className="relative p-1.5 md:p-2 rounded-lg bg-bg-card border border-bg-border hover:border-maroon-800 transition-colors"

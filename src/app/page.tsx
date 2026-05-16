@@ -3,6 +3,8 @@ import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import Header from "@/components/Header";
 import MarketTicker from "@/components/MarketTicker";
+import AngelLogin from "@/components/AngelLogin";
+import { getAngelSession, isLoginSkipped } from "@/lib/angelOne";
 import Sidebar from "@/components/Sidebar";
 import { alertData } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
@@ -140,6 +142,18 @@ export default function Dashboard() {
   const [activeSection, setActiveSection] = useState("home");
   const [alerts, setAlerts] = useState(alertData);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [angelActive, setAngelActive] = useState(false);
+
+  // Check Angel One session on mount
+  useEffect(() => {
+    const session = getAngelSession();
+    if (session) {
+      setAngelActive(true);
+    } else if (!isLoginSkipped()) {
+      setShowLogin(true);
+    }
+  }, []);
 
   // Read hash on mount for direct links / bookmarks
   useEffect(() => {
@@ -176,6 +190,14 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      {/* Angel One login modal */}
+      {showLogin && (
+        <AngelLogin
+          onSuccess={() => { setShowLogin(false); setAngelActive(true); }}
+          onSkip={() => setShowLogin(false)}
+        />
+      )}
+
       {/* Ticker */}
       <MarketTicker />
 
@@ -187,6 +209,8 @@ export default function Dashboard() {
           navigateTo("alerts");
         }}
         onNavigate={navigateTo}
+        angelActive={angelActive}
+        onAngelLoginClick={() => setShowLogin(true)}
       />
 
       {/* Main layout */}
