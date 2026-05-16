@@ -1,6 +1,7 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { BarChart2, TrendingUp, Minus, ZoomIn, RefreshCw } from "lucide-react";
+import { getAngelSession, getAngelCandles } from "@/lib/angelOne";
 import { cn, fmt, scoreColor } from "@/lib/utils";
 import {
   ComposedChart, Bar, Line, Area, XAxis, YAxis, Tooltip,
@@ -72,13 +73,81 @@ function generateOHLC(startPrice: number, days: number, trend: "bull" | "bear" |
 }
 
 const CHART_SYMBOLS = [
-  { label: "NIFTY 50", start: 22000, trend: "bull" as const },
-  { label: "HAL", start: 4200, trend: "bull" as const },
-  { label: "TCS", start: 3900, trend: "bull" as const },
-  { label: "RVNL", start: 480, trend: "bull" as const },
-  { label: "TATASTEEL", start: 175, trend: "bear" as const },
-  { label: "BANKNIFTY", start: 50000, trend: "sideways" as const },
+  { label: "NIFTY 50",  token: "26000", exchange: "NSE", start: 22000, trend: "bull"      as const },
+  { label: "BANKNIFTY", token: "26009", exchange: "NSE", start: 50000, trend: "sideways"  as const },
+  { label: "TCS",       token: "11536", exchange: "NSE", start: 3900,  trend: "bull"      as const },
+  { label: "RELIANCE",  token: "2885",  exchange: "NSE", start: 2900,  trend: "bull"      as const },
+  { label: "HDFCBANK",  token: "1333",  exchange: "NSE", start: 1600,  trend: "sideways"  as const },
+  { label: "TATASTEEL", token: "3499",  exchange: "NSE", start: 175,   trend: "bear"      as const },
 ];
+
+// ── Technical indicator helpers ───────────────────────────────────────────
+function calcEMA(values: number[], n: number): number[] {
+  const k = 2 / (n + 1);
+  let e = values[0] ?? 0;
+  return values.map(v => { e = v * k + e * (1 - k); return +e.toFixed(2); });
+}
+
+function calcRSI(closes: number[], period = 14): number[] {
+  if (closes.length < period + 1) return closes.map(() => 50);
+  const out: number[] = new Array(period).fill(50);
+  let ag = 0, al = 0;
+  for (let i = 1; i <= period; i++) { const d = closes[i] - closes[i-1]; if (d > 0) ag += d; else al -= d; }
+  ag /= period; al /= period;
+  out.push(+(al === 0 ? 100 : 100 - 100 / (1 + ag / al)).toFixed(1));
+  for (let i = period + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i-1];
+    ag = (ag * (period-1) + Math.max(0, d)) / period;
+    al = (al * (period-1) + Math.max(0, -d)) / period;
+    out.push(+(al === 0 ? 100 : 100 - 100 / (1 + ag / al)).toFixed(1));
+  }
+  return out;
+}
+
+function calcMACD(closes: number[]) {
+  const m = calcEMA(closes, 12).map((v, i) => +(v - calcEMA(closes, 26)[i]).toFixed(2));
+  const s = calcEMA(m, 9);
+  return { macdLine: m, signalLine: s, hist: m.map((v, i) => +(v - s[i]).toFixed(2)) };
+}
+
+type CandleRow = ReturnType<typeof generateOHLC>[0];
+
+function transformCandles(raw: { t: number; o: number; h: number; l: number; c: number; v: number }[]): CandleRow[] {
+  if (!raw.length) return [];
+  const closes = raw.map(c => c.c);
+  const e20 = calcEMA(closes, 20);
+  const e50 = calcEMA(closes, 50);
+  const e200 = calcEMA(closes, 200);
+  const rsiArr = calcRSI(closes);
+  const { macdLine, signalLine, hist } = calcMACD(closes);
+  return raw.map((c, i) => {
+    const std = i >= 19
+      ? Math.sqrt(closes.slice(i-19, i+1).reduce((a, v) => a + (v - e20[i])**2, 0) / 20)
+      : e20[i] * 0.01;
+    return {
+      date: new Date(Date.now() - (raw.length - 1 - i) * 86400000)
+        .toLocaleDateString("en-IN", { month: "short", day: "numeric" }),
+      open: c.o, high: c.h, low: c.l, close: c.c, volume: c.v,
+      isGreen: c.c >= c.o,
+      ema20: e20[i], ema50: e50[i], ema200: e200[i],
+      rsi: rsiArr[i] ?? 50,
+      macd: macdLine[i] ?? 0, signal: signalLine[i] ?? 0, histogram: hist[i] ?? 0,
+      bbUpper: +(e20[i] + 2*std).toFixed(2), bbLower: +(e20[i] - 2*std).toFixed(2),
+      vwap: +((c.h + c.l + c.c) / 3).toFixed(2),
+    };
+  });
+}
+
+function angelDateRange(days: number): { from: string; to: string; interval: "FIFTEEN_MINUTE" | "ONE_DAY" } {
+  const now = new Date();
+  const from = new Date(now);
+  from.setDate(now.getDate() - days);
+  const fmt = (d: Date, s: boolean) => {
+    const [y, m, dd] = [d.getFullYear(), String(d.getMonth()+1).padStart(2,"0"), String(d.getDate()).padStart(2,"0")];
+    return `${y}-${m}-${dd} ${s ? "09:15" : "15:30"}`;
+  };
+  return { from: fmt(from, true), to: fmt(now, false), interval: days <= 7 ? "FIFTEEN_MINUTE" : "ONE_DAY" };
+}
 
 const TIMEFRAMES = ["1W", "1M", "3M", "6M", "1Y"];
 
@@ -180,9 +249,35 @@ export default function AdvancedChart() {
   const [showBB, setShowBB] = useState(false);
   const [showVWAP, setShowVWAP] = useState(true);
   const [activePanel, setActivePanel] = useState<"RSI" | "MACD" | "Volume" | null>("RSI");
+  const [liveCandles, setLiveCandles] = useState<CandleRow[] | null>(null);
+  const [isLive, setIsLive] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const days = timeframe === "1W" ? 7 : timeframe === "1M" ? 30 : timeframe === "3M" ? 90 : timeframe === "6M" ? 180 : 365;
-  const data = useMemo(() => generateOHLC(selectedSymbol.start, days, selectedSymbol.trend), [selectedSymbol, days]);
+
+  const fetchCandles = useCallback(async () => {
+    const session = getAngelSession();
+    if (!session) return;
+    setLoading(true);
+    try {
+      const { from, to, interval } = angelDateRange(days);
+      const raw = await getAngelCandles(session, selectedSymbol.exchange, selectedSymbol.token, interval, from, to);
+      if (raw.length > 5) {
+        setLiveCandles(transformCandles(raw));
+        setIsLive(true);
+      }
+    } catch { /* fall back to mock */ }
+    setLoading(false);
+  }, [selectedSymbol, days]);
+
+  useEffect(() => {
+    setLiveCandles(null);
+    setIsLive(false);
+    fetchCandles();
+  }, [fetchCandles]);
+
+  const mockData = useMemo(() => generateOHLC(selectedSymbol.start, days, selectedSymbol.trend), [selectedSymbol, days]);
+  const data = liveCandles ?? mockData;
 
   const lastCandle = data[data.length - 1];
   const prevCandle = data[data.length - 2];
@@ -200,7 +295,12 @@ export default function AdvancedChart() {
             <BarChart2 className="w-5 h-5 text-maroon-600" />
             Advanced Chart Studio
           </h2>
-          <p className="text-xs text-ivory-500">Candlestick • EMA • Bollinger Bands • RSI • MACD • VWAP</p>
+          <p className="text-xs text-ivory-500 flex items-center gap-1.5">
+            {isLive
+              ? <><span className="w-1.5 h-1.5 rounded-full bg-signal-bull inline-block animate-pulse" /> Live — Angel One SmartAPI</>
+              : loading ? "Fetching candles..." : "Candlestick • EMA • Bollinger Bands • RSI • MACD • VWAP"
+            }
+          </p>
         </div>
       </div>
 
