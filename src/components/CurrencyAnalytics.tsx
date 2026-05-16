@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TrendingUp, TrendingDown, Globe } from "lucide-react";
+import { fetchGlobalMarkets, CURRENCY_YF, type YFQuote } from "@/lib/yahooData";
 import {
   AreaChart, BarChart, LineChart, ComposedChart,
   Area, Bar, Line,
@@ -65,15 +66,37 @@ const trendColor = (t: CurrencyPair["trend"]) =>
 export default function CurrencyAnalytics() {
   const [activeTab, setActiveTab] = useState<"usdinr" | "em" | "carry">("usdinr");
   const [selectedPair, setSelectedPair] = useState("USD/INR");
+  const [live, setLive] = useState<Map<string, YFQuote>>(new Map());
+  const [isLive, setIsLive] = useState(false);
 
-  const sel = PAIRS.find((p) => p.pair === selectedPair) ?? PAIRS[0];
+  useEffect(() => {
+    const load = async () => {
+      const m = await fetchGlobalMarkets();
+      if (m.size) { setLive(m); setIsLive(true); }
+    };
+    load();
+    const id = setInterval(load, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const livePairs: CurrencyPair[] = PAIRS.map(p => {
+    const yfSym = CURRENCY_YF[p.pair];
+    const q = yfSym ? live.get(yfSym) : undefined;
+    if (!q) return p;
+    const trend: CurrencyPair["trend"] = q.changePct > 0.1 ? "DEPRECIATION" : q.changePct < -0.1 ? "APPRECIATION" : "STABLE";
+    return { ...p, rate: +q.price.toFixed(4), change: +q.change.toFixed(4), changePct: +q.changePct.toFixed(2), trend };
+  });
+
+  const sel = livePairs.find((p) => p.pair === selectedPair) ?? livePairs[0];
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-ivory-100 tracking-wide">Currency Analytics</h2>
-          <p className="text-xs text-ivory-500 mt-0.5">USD/INR · RBI intervention · EM basket · Carry trade signals</p>
+          <p className="text-xs text-ivory-500 mt-0.5 flex items-center gap-1">
+            {isLive ? <><span className="w-1.5 h-1.5 rounded-full bg-signal-bull inline-block animate-pulse" /> Live — Yahoo Finance</> : "USD/INR · RBI intervention · EM basket · Carry trade signals"}
+          </p>
         </div>
         <div className="flex gap-1.5">
           {(["usdinr", "em", "carry"] as const).map((t) => (
@@ -87,7 +110,7 @@ export default function CurrencyAnalytics() {
 
       {/* Currency pair cards */}
       <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-        {PAIRS.map((p) => (
+        {livePairs.map((p) => (
           <button key={p.pair} onClick={() => setSelectedPair(p.pair)}
             className={`card-base p-2.5 text-left border transition-all ${selectedPair === p.pair ? "border-maroon-700/60 bg-maroon-900/20" : "border-transparent hover:border-bg-border"}`}>
             <div className="text-[9px] text-ivory-600">{p.pair}</div>

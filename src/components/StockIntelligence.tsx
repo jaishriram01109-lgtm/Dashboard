@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Search, TrendingUp, TrendingDown, AlertCircle, Activity, BookOpen, BarChart2 } from "lucide-react";
 import { stockData } from "@/lib/mockData";
 import type { StockData } from "@/lib/types";
+import { useAngelQuotes } from "@/hooks/useAngelData";
 import {
   cn, fmt, fmtPct, fmtCr, colorFromChange, signalColor, signalLabel,
   scoreColor, scoreBg, phaseColor, rsiColor, trendColor,
@@ -302,8 +303,18 @@ export default function StockIntelligence() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<StockData | null>(stockData[0]);
   const [sortBy, setSortBy] = useState<"aiScore" | "smartMoneyScore" | "changePct">("aiScore");
+  const { quotes, isLive } = useAngelQuotes(30_000);
 
-  const filtered = stockData
+  const liveStockData = useMemo((): StockData[] => {
+    if (!isLive || quotes.size === 0) return stockData;
+    return stockData.map(s => {
+      const q = quotes.get(s.symbol) ?? quotes.get(s.symbol.toUpperCase());
+      if (!q) return s;
+      return { ...s, price: q.ltp, change: q.change, changePct: q.changePct };
+    });
+  }, [quotes, isLive]);
+
+  const filtered = liveStockData
     .filter(s =>
       s.symbol.toLowerCase().includes(query.toLowerCase()) ||
       s.name.toLowerCase().includes(query.toLowerCase()) ||
@@ -324,7 +335,9 @@ export default function StockIntelligence() {
             <Search className="w-5 h-5 text-maroon-600" />
             Stock Intelligence Engine
           </h2>
-          <p className="text-xs text-ivory-500">Full fundamental + technical + AI analysis for every NSE stock</p>
+          <p className="text-xs text-ivory-500 flex items-center gap-1">
+            {isLive ? <><span className="w-1.5 h-1.5 rounded-full bg-signal-bull inline-block animate-pulse" /> Live prices — Angel One SmartAPI</> : "Full fundamental + technical + AI analysis for every NSE stock"}
+          </p>
         </div>
       </div>
 

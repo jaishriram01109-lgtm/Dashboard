@@ -1,7 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TrendingUp, TrendingDown, Zap } from "lucide-react";
+import { fetchGlobalMarkets, type YFQuote } from "@/lib/yahooData";
+
+const COMMOD_YF: Record<string, string> = {
+  "Gold": "GC=F", "Silver": "SI=F", "Crude Oil": "CL=F",
+  "Natural Gas": "NG=F", "Copper": "HG=F",
+};
 import {
   AreaChart, BarChart, ComposedChart,
   Area, Bar, Line,
@@ -55,9 +61,28 @@ const seasonalData = [
 export default function CommodityDashboard() {
   const [selected, setSelected] = useState("crude");
   const [activeCategory, setActiveCategory] = useState<"ALL" | "ENERGY" | "METALS" | "AGRI">("ALL");
+  const [live, setLive] = useState<Map<string, YFQuote>>(new Map());
+  const [isLive, setIsLive] = useState(false);
 
-  const filtered = activeCategory === "ALL" ? COMMODITIES : COMMODITIES.filter((c) => c.category === activeCategory);
-  const sel = COMMODITIES.find((c) => c.id === selected) ?? COMMODITIES[0];
+  useEffect(() => {
+    const load = async () => {
+      const m = await fetchGlobalMarkets();
+      if (m.size) { setLive(m); setIsLive(true); }
+    };
+    load();
+    const id = setInterval(load, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const liveCommodities: Commodity[] = COMMODITIES.map(c => {
+    const yfSym = COMMOD_YF[c.name];
+    const q = yfSym ? live.get(yfSym) : undefined;
+    if (!q) return c;
+    return { ...c, price: +q.price.toFixed(2), change: +q.change.toFixed(2), changePct: +q.changePct.toFixed(2) };
+  });
+
+  const filtered = activeCategory === "ALL" ? liveCommodities : liveCommodities.filter((c) => c.category === activeCategory);
+  const sel = liveCommodities.find((c) => c.id === selected) ?? liveCommodities[0];
   const hist = HISTORY[selected] ?? [];
 
   return (
@@ -65,7 +90,9 @@ export default function CommodityDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-ivory-100 tracking-wide">Commodity Dashboard</h2>
-          <p className="text-xs text-ivory-500 mt-0.5">MCX · LME · NYMEX — India market impact analysis</p>
+          <p className="text-xs text-ivory-500 mt-0.5 flex items-center gap-1">
+            {isLive ? <><span className="w-1.5 h-1.5 rounded-full bg-signal-bull inline-block animate-pulse" /> Live — Yahoo Finance (Gold, Silver, Crude, NG, Copper)</> : "MCX · LME · NYMEX — India market impact analysis"}
+          </p>
         </div>
         <div className="flex gap-1.5">
           {(["ALL", "ENERGY", "METALS", "AGRI"] as const).map((cat) => (

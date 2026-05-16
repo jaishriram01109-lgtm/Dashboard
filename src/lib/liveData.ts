@@ -5,6 +5,12 @@ export const LIVE_SECTION_IDS = new Set<string>([
   "watchlist",   // real Angel One quotes
   "scanner",     // real Angel One momentum scan
   "breadth",     // real Angel One A/D data
+  "global",      // Yahoo Finance global indices/currencies/commodities
+  "currency",    // Yahoo Finance currency pairs
+  "commodity",   // Yahoo Finance commodities
+  "bonds",       // Yahoo Finance US bond yields
+  "index",       // Angel One NIFTY/BANKNIFTY live prices
+  "stocks",      // Angel One stock intelligence live prices
 ]);
 
 import {

@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Globe, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { fetchGlobalMarkets, resolve, INDEX_YF, CURRENCY_YF, COMMODITY_YF, type YFQuote } from "@/lib/yahooData";
 import { cn } from "@/lib/utils";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -122,10 +123,35 @@ function ChangeCell({ pct, value }: { pct: number; value?: number }) {
 
 export default function GlobalMarkets() {
   const [region, setRegion] = useState<"all" | "Americas" | "Europe" | "Asia">("all");
+  const [live, setLive] = useState<Map<string, YFQuote>>(new Map());
+  const [isLive, setIsLive] = useState(false);
 
-  const filteredIndices = INDICES.filter(i => region === "all" || i.region === region);
-  const bullishIndices = INDICES.filter(i => i.changePct > 0).length;
-  const bearishIndices = INDICES.filter(i => i.changePct < 0).length;
+  useEffect(() => {
+    fetchGlobalMarkets().then(data => {
+      if (data.size > 0) { setLive(data); setIsLive(true); }
+    });
+    const t = setInterval(() => fetchGlobalMarkets().then(data => {
+      if (data.size > 0) { setLive(data); setIsLive(true); }
+    }), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const liveIndices = INDICES.map(idx => {
+    const q = resolve(idx.symbol, live, INDEX_YF);
+    return q ? { ...idx, value: q.price, change: q.change, changePct: q.changePct } : idx;
+  });
+  const liveCurrencies = CURRENCIES.map(c => {
+    const q = resolve(c.pair, live, CURRENCY_YF);
+    return q ? { ...c, value: q.price, change: q.change, changePct: q.changePct } : c;
+  });
+  const liveCommodities = COMMODITIES.map(c => {
+    const q = resolve(c.name, live, COMMODITY_YF);
+    return q ? { ...c, value: q.price, change: q.change, changePct: q.changePct } : c;
+  });
+
+  const filteredIndices = liveIndices.filter(i => region === "all" || i.region === region);
+  const bullishIndices = liveIndices.filter(i => i.changePct > 0).length;
+  const bearishIndices = liveIndices.filter(i => i.changePct < 0).length;
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -136,7 +162,9 @@ export default function GlobalMarkets() {
             <Globe className="w-5 h-5 text-maroon-600" />
             Global Markets
           </h2>
-          <p className="text-xs text-ivory-500">World indices, currencies, commodities & Nifty correlation</p>
+          <p className="text-xs text-ivory-500 flex items-center gap-1">
+            {isLive ? <><span className="w-1.5 h-1.5 rounded-full bg-signal-bull live-dot inline-block" /> Live — Yahoo Finance</> : "World indices, currencies, commodities"}
+          </p>
         </div>
         <div className="flex items-center gap-3 text-xs font-mono">
           <span className="text-ivory-500">Global Breadth:</span>
@@ -193,7 +221,7 @@ export default function GlobalMarkets() {
             <div className="text-xs font-semibold text-ivory-300">Currency Pairs & India Impact</div>
           </div>
           <div className="divide-y divide-bg-border/50">
-            {CURRENCIES.map(c => (
+            {liveCurrencies.map(c => (
               <div key={c.pair} className="px-4 py-2.5 flex items-center gap-3 hover:bg-bg-hover transition-colors">
                 <span className="text-base w-10">{c.flag}</span>
                 <div className="flex-1 min-w-0">
@@ -215,7 +243,7 @@ export default function GlobalMarkets() {
             <div className="text-xs font-semibold text-ivory-300">Commodities</div>
           </div>
           <div className="divide-y divide-bg-border/50">
-            {COMMODITIES.map(c => (
+            {liveCommodities.map(c => (
               <div key={c.symbol} className="px-4 py-2.5 flex items-center gap-3 hover:bg-bg-hover transition-colors">
                 <span className="text-base w-6">{c.icon}</span>
                 <div className="flex-1 min-w-0">

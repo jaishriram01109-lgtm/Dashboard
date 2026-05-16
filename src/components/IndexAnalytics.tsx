@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { TrendingUp, TrendingDown, Activity, RefreshCw } from "lucide-react";
+import { useAngelQuotes } from "@/hooks/useAngelData";
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
@@ -272,8 +273,19 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps): JSX.Elem
 
 export default function IndexAnalytics(): JSX.Element {
   const [activeIndex, setActiveIndex] = useState<IndexKey>("NIFTY50");
+  const { quotes, isLive } = useAngelQuotes(30_000);
 
-  const idx = INDEX_DATA[activeIndex];
+  const liveIndexData = useMemo(() => {
+    const data = { ...INDEX_DATA };
+    if (!isLive || quotes.size === 0) return data;
+    const niftyQ = quotes.get("NIFTY");
+    if (niftyQ) data.NIFTY50 = { ...INDEX_DATA.NIFTY50, value: niftyQ.ltp, change: niftyQ.change, changePct: niftyQ.changePct };
+    const bnQ = quotes.get("BANKNIFTY");
+    if (bnQ) data.BANKNIFTY = { ...INDEX_DATA.BANKNIFTY, value: bnQ.ltp, change: bnQ.change, changePct: bnQ.changePct };
+    return data;
+  }, [quotes, isLive]);
+
+  const idx = liveIndexData[activeIndex];
   const constituents = activeIndex === "NIFTY50" ? NIFTY_CONSTITUENTS : BANKNIFTY_CONSTITUENTS;
   const breadth = activeIndex === "NIFTY50" ? NIFTY_BREADTH : BANKNIFTY_BREADTH;
   const sectorContrib = activeIndex === "NIFTY50" ? NIFTY_SECTOR_CONTRIB : BANKNIFTY_SECTOR_CONTRIB;
@@ -298,7 +310,10 @@ export default function IndexAnalytics(): JSX.Element {
       <div className="bg-bg-secondary border-b border-bg-border px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Activity className="text-maroon-800" size={22} />
-          <h1 className="text-ivory-100 text-xl font-display font-bold tracking-wide">Index Analytics</h1>
+          <div>
+            <h1 className="text-ivory-100 text-xl font-display font-bold tracking-wide">Index Analytics</h1>
+            {isLive && <p className="text-xs text-signal-bull flex items-center gap-1 mt-0.5"><span className="w-1.5 h-1.5 rounded-full bg-signal-bull inline-block animate-pulse" /> Live — Angel One SmartAPI</p>}
+          </div>
         </div>
         {/* Index toggle */}
         <div className="flex bg-bg-card border border-bg-border rounded-lg overflow-hidden">
