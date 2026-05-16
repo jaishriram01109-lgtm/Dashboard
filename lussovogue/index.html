@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lusso Vogue | Premium Fashion for Men & Women</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</head>
+<body>
+
+  <!-- ===== ANNOUNCEMENT BAR ===== -->
+  <div class="announcement-bar">
+    <div class="announcement-track">
+      <span>Free Shipping on Orders Above ₹999 &nbsp;|&nbsp; Use Code: LUSSO10 for 10% Off &nbsp;|&nbsp; New Collection Now Live &nbsp;|&nbsp; Free Shipping on Orders Above ₹999 &nbsp;|&nbsp; Use Code: LUSSO10 for 10% Off &nbsp;|&nbsp; New Collection Now Live &nbsp;|&nbsp;</span>
+      <span aria-hidden="true">Free Shipping on Orders Above ₹999 &nbsp;|&nbsp; Use Code: LUSSO10 for 10% Off &nbsp;|&nbsp; New Collection Now Live &nbsp;|&nbsp;</span>
+    </div>
+  </div>
+
+  <!-- ===== HEADER ===== -->
+  <header class="site-header" id="siteHeader">
+    <div class="header-inner">
+
+      <!-- Mobile Menu Toggle -->
+      <button class="hamburger" id="hamburger" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+
+      <!-- Logo -->
+      <div class="logo">
+        <a href="index.html">
+          <span class="logo-main">LUSSO</span>
+          <span class="logo-sub">VOGUE</span>
+        </a>
+      </div>
+
+      <!-- Navigation -->
+      <nav class="main-nav" id="mainNav">
+        <ul>
+          <li class="has-dropdown">
+            <a href="#">Men <i class="fa fa-chevron-down"></i></a>
+            <div class="mega-menu">
+              <div class="mega-col">
+                <h4>Clothing</h4>
+                <ul>
+                  <li><a href="#">Shirts</a></li>
+                  <li><a href="#">Blazers</a></li>
+                  <li><a href="#">Trousers</a></li>
+                  <li><a href="#">Suits</a></li>
+                  <li><a href="#">Kurtas</a></li>
+                  <li><a href="#">Joggers</a></li>
+                </ul>
+              </div>
+              <div class="mega-col">
+                <h4>Occasion</h4>
+                <ul>
+                  <li><a href="#">Formal</a></li>
+                  <li><a href="#">Casual</a></li>
+                  <li><a href="#">Festive</a></li>
+                  <li><a href="#">Wedding</a></li>
+                </ul>
+              </div>
+              <div class="mega-col">
+                <h4>Shop By</h4>
+                <ul>
+                  <li><a href="#">New Arrivals</a></li>
+                  <li><a href="#">Best Sellers</a></li>
+                  <li><a href="#">Sale</a></li>
+                </ul>
+              </div>
+            </div>
+          </li>
+          <li class="has-dropdown">
+            <a href="#">Women <i class="fa fa-chevron-down"></i></a>
+            <div class="mega-menu">
+              <div class="mega-col">
+                <h4>Western</h4>
+                <ul>
+                  <li><a href="#">Dresses</a></li>
+                  <li><a href="#">Tops</a></li>
+                  <li><a href="#">Co-ords</a></li>
+                  <li><a href="#">Jumpsuits</a></li>
+                  <li><a href="#">Jeans</a></li>
+                </ul>
+              </div>
+              <div class="mega-col">
+                <h4>Ethnic</h4>
+                <ul>
+                  <li><a href="#">Sarees</a></li>
+                  <li><a href="#">Lehengas</a></li>
+                  <li><a href="#">Kurtas</a></li>
+                  <li><a href="#">Salwar Suits</a></li>
+                </ul>
+              </div>
+              <div class="mega-col">
+                <h4>Shop By</h4>
+                <ul>
+                  <li><a href="#">New Arrivals</a></li>
+                  <li><a href="#">Best Sellers</a></li>
+                  <li><a href="#">Sale</a></li>
+                </ul>
+              </div>
+            </div>
+          </li>
+          <li><a href="#">New Arrivals</a></li>
+          <li><a href="#">Collections</a></li>
+          <li><a href="#" class="sale-link">Sale</a></li>
+        </ul>
+      </nav>
+
+      <!-- Header Actions -->
+      <div class="header-actions">
+        <button class="icon-btn search-toggle" id="searchToggle" aria-label="Search">
+          <i class="fa fa-search"></i>
+        </button>
+        <a href="#" class="icon-btn" aria-label="Wishlist">
+          <i class="fa-regular fa-heart"></i>
+        </a>
+        <a href="#" class="icon-btn" aria-label="Account">
+          <i class="fa-regular fa-user"></i>
+        </a>
+        <a href="#" class="icon-btn cart-btn" aria-label="Cart">
+          <i class="fa-solid fa-bag-shopping"></i>
+          <span class="cart-count">0</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="search-bar" id="searchBar">
+      <div class="search-inner">
+        <input type="text" placeholder="Search for products, brands..." />
+        <button><i class="fa fa-search"></i></button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile Overlay Nav -->
+  <div class="mobile-overlay" id="mobileOverlay"></div>
+
+  <!-- ===== HERO SECTION ===== -->
+  <section class="hero">
+    <div class="hero-slider" id="heroSlider">
+
+      <div class="hero-slide active" style="background: linear-gradient(to right, #000 40%, #800020 100%);">
+        <div class="hero-content">
+          <p class="hero-tag">New Season</p>
+          <h1>Redefine<br /><em>Elegance</em></h1>
+          <p class="hero-desc">Curated luxury fashion for the modern individual. Explore our latest collection.</p>
+          <div class="hero-btns">
+            <a href="#" class="btn btn-primary">Shop Men</a>
+            <a href="#" class="btn btn-outline">Shop Women</a>
+          </div>
+        </div>
+        <div class="hero-image-box">
+          <div class="placeholder-img hero-placeholder">
+            <i class="fa-solid fa-shirt"></i>
+            <span>Hero Banner 1</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-slide" style="background: linear-gradient(to right, #800020 40%, #1a0008 100%);">
+        <div class="hero-content">
+          <p class="hero-tag">Festive Edit</p>
+          <h1>Celebrate<br /><em>in Style</em></h1>
+          <p class="hero-desc">Premium ethnic and fusion wear for every special occasion.</p>
+          <div class="hero-btns">
+            <a href="#" class="btn btn-primary">Explore Collection</a>
+            <a href="#" class="btn btn-outline">View Lookbook</a>
+          </div>
+        </div>
+        <div class="hero-image-box">
+          <div class="placeholder-img hero-placeholder">
+            <i class="fa-solid fa-person-dress"></i>
+            <span>Hero Banner 2</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-slide" style="background: linear-gradient(to right, #1a1a1a 40%, #800020 100%);">
+        <div class="hero-content">
+          <p class="hero-tag">Sale is Live</p>
+          <h1>Up to<br /><em>50% Off</em></h1>
+          <p class="hero-desc">Premium fashion at unbeatable prices. Limited time offer.</p>
+          <div class="hero-btns">
+            <a href="#" class="btn btn-burgundy">Shop Sale</a>
+          </div>
+        </div>
+        <div class="hero-image-box">
+          <div class="placeholder-img hero-placeholder">
+            <i class="fa-solid fa-tags"></i>
+            <span>Hero Banner 3</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slider Controls -->
+    <div class="slider-controls">
+      <button class="slider-prev" id="sliderPrev"><i class="fa fa-chevron-left"></i></button>
+      <div class="slider-dots" id="sliderDots">
+        <span class="dot active" data-index="0"></span>
+        <span class="dot" data-index="1"></span>
+        <span class="dot" data-index="2"></span>
+      </div>
+      <button class="slider-next" id="sliderNext"><i class="fa fa-chevron-right"></i></button>
+    </div>
+  </section>
+
+  <!-- ===== CATEGORIES STRIP ===== -->
+  <section class="category-strip">
+    <div class="container">
+      <div class="strip-grid">
+        <a href="#" class="strip-item">
+          <div class="strip-icon"><i class="fa-solid fa-shirt"></i></div>
+          <span>Shirts</span>
+        </a>
+        <a href="#" class="strip-item">
+          <div class="strip-icon"><i class="fa-solid fa-vest"></i></div>
+          <span>Blazers</span>
+        </a>
+        <a href="#" class="strip-item">
+          <div class="strip-icon"><i class="fa-solid fa-person-dress"></i></div>
+          <span>Dresses</span>
+        </a>
+        <a href="#" class="strip-item">
+          <div class="strip-icon"><i class="fa-solid fa-gem"></i></div>
+          <span>Ethnic</span>
+        </a>
+        <a href="#" class="strip-item">
+          <div class="strip-icon"><i class="fa-solid fa-tags"></i></div>
+          <span>Sale</span>
+        </a>
+        <a href="#" class="strip-item">
+          <div class="strip-icon"><i class="fa-solid fa-star"></i></div>
+          <span>New In</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SHOP BY CATEGORY ===== -->
+  <section class="section shop-category">
+    <div class="container">
+      <div class="section-header">
+        <p class="section-tag">Explore</p>
+        <h2>Shop By Category</h2>
+      </div>
+      <div class="category-grid">
+        <a href="#" class="cat-card cat-large">
+          <div class="cat-image placeholder-img">
+            <i class="fa-solid fa-shirt"></i>
+            <span>Men's Collection</span>
+          </div>
+          <div class="cat-label">
+            <h3>Men's</h3>
+            <span>Shop Now <i class="fa fa-arrow-right"></i></span>
+          </div>
+        </a>
+        <a href="#" class="cat-card cat-large">
+          <div class="cat-image placeholder-img">
+            <i class="fa-solid fa-person-dress"></i>
+            <span>Women's Collection</span>
+          </div>
+          <div class="cat-label">
+            <h3>Women's</h3>
+            <span>Shop Now <i class="fa fa-arrow-right"></i></span>
+          </div>
+        </a>
+        <a href="#" class="cat-card cat-small">
+          <div class="cat-image placeholder-img">
+            <i class="fa-solid fa-star"></i>
+            <span>New Arrivals</span>
+          </div>
+          <div class="cat-label">
+            <h3>New Arrivals</h3>
+            <span>Shop Now <i class="fa fa-arrow-right"></i></span>
+          </div>
+        </a>
+        <a href="#" class="cat-card cat-small">
+          <div class="cat-image placeholder-img">
+            <i class="fa-solid fa-gem"></i>
+            <span>Festive Wear</span>
+          </div>
+          <div class="cat-label">
+            <h3>Festive Wear</h3>
+            <span>Shop Now <i class="fa fa-arrow-right"></i></span>
+          </div>
+        </a>
+        <a href="#" class="cat-card cat-small">
+          <div class="cat-image placeholder-img">
+            <i class="fa-solid fa-tags"></i>
+            <span>Sale</span>
+          </div>
+          <div class="cat-label">
+            <h3>Sale</h3>
+            <span>Shop Now <i class="fa fa-arrow-right"></i></span>
+          </div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== NEW ARRIVALS ===== -->
+  <section class="section products-section">
+    <div class="container">
+      <div class="section-header">
+        <p class="section-tag">Just Dropped</p>
+        <h2>New Arrivals</h2>
+        <div class="product-tabs">
+          <button class="tab-btn active" data-tab="all">All</button>
+          <button class="tab-btn" data-tab="men">Men</button>
+          <button class="tab-btn" data-tab="women">Women</button>
+        </div>
+      </div>
+
+      <div class="products-grid">
+
+        <div class="product-card" data-cat="men">
+          <div class="product-image">
+            <div class="placeholder-img product-placeholder">
+              <i class="fa-solid fa-shirt"></i>
+            </div>
+            <div class="product-badges">
+              <span class="badge badge-new">New</span>
+            </div>
+            <div class="product-actions">
+              <button class="action-btn" title="Wishlist"><i class="fa-regular fa-heart"></i></button>
+              <button class="action-btn" title="Quick View"><i class="fa-regular fa-eye"></i></button>
+            </div>
+            <button class="add-to-cart-overlay">Add to Cart</button>
+          </div>
+          <div class="product-info">
+            <p class="product-cat">Men · Shirts</p>
+            <h3>Premium Linen Shirt</h3>
+            <div class="product-price">
+              <span class="price">₹2,499</span>
+              <span class="price-original">₹3,999</span>
+              <span class="discount">38% off</span>
+            </div>
+            <div class="product-sizes">
+              <span>S</span><span>M</span><span>L</span><span>XL</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="product-card" data-cat="women">
+          <div class="product-image">
+            <div class="placeholder-img product-placeholder">
+              <i class="fa-solid fa-person-dress"></i>
+            </div>
+            <div class="product-badges">
+              <span class="badge badge-new">New</span>
+              <span class="badge badge-hot">Trending</span>
+            </div>
+            <div class="product-actions">
+              <button class="action-btn" title="Wishlist"><i class="fa-regular fa-heart"></i></button>
+              <button class="action-btn" title="Quick View"><i class="fa-regular fa-eye"></i></button>
+            </div>
+            <button class="add-to-cart-overlay">Add to Cart</button>
+          </div>
+          <div class="product-info">
+            <p class="product-cat">Women · Dresses</p>
+            <h3>Floral Wrap Dress</h3>
+            <div class="product-price">
+              <span class="price">₹3,199</span>
+              <span class="price-original">₹4,999</span>
+              <span class="discount">36% off</span>
+            </div>
+            <div class="product-sizes">
+              <span>XS</span><span>S</span><span>M</span><span>L</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="product-card" data-cat="men">
+          <div class="product-image">
+            <div class="placeholder-img product-placeholder">
+              <i class="fa-solid fa-vest"></i>
+            </div>
+            <div class="product-badges">
+              <span class="badge badge-sale">Sale</span>
+            </div>
+            <div class="product-actions">
+              <button class="action-btn" title="Wishlist"><i class="fa-regular fa-heart"></i></button>
+              <button class="action-btn" title="Quick View"><i class="fa-regular fa-eye"></i></button>
+            </div>
+            <button class="add-to-cart-overlay">Add to Cart</button>
+          </div>
+          <div class="product-info">
+            <p class="product-cat">Men · Blazers</p>
+            <h3>Classic Slim Fit Blazer</h3>
+            <div class="product-price">
+              <span class="price">₹6,499</span>
+              <span class="price-original">₹9,999</span>
+              <span class="discount">35% off</span>
+            </div>
+            <div class="product-sizes">
+              <span>S</span><span>M</span><span>L</span><span>XL</span><span>XXL</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="product-card" data-cat="women">
+          <div class="product-image">
+            <div class="placeholder-img product-placeholder">
+              <i class="fa-solid fa-gem"></i>
+            </div>
+            <div class="product-badges">
+              <span class="badge badge-new">New</span>
+            </div>
+            <div class="product-actions">
+              <button class="action-btn" title="Wishlist"><i class="fa-regular fa-heart"></i></button>
+              <button class="action-btn" title="Quick View"><i class="fa-regular fa-eye"></i></button>
+            </div>
+            <button class="add-to-cart-overlay">Add to Cart</button>
+          </div>
+          <div class="product-info">
+            <p class="product-cat">Women · Ethnic</p>
+            <h3>Silk Embroidered Kurta Set</h3>
+            <div class="product-price">
+              <span class="price">₹4,799</span>
+              <span class="price-original">₹7,499</span>
+              <span class="discount">36% off</span>
+            </div>
+            <div class="product-sizes">
+              <span>S</span><span>M</span><span>L</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="product-card" data-cat="men">
+          <div class="product-image">
+            <div class="placeholder-img product-placeholder">
+              <i class="fa-solid fa-shirt"></i>
+            </div>
+            <div class="product-actions">
+              <button class="action-btn" title="Wishlist"><i class="fa-regular fa-heart"></i></button>
+              <button class="action-btn" title="Quick View"><i class="fa-regular fa-eye"></i></button>
+            </div>
+            <button class="add-to-cart-overlay">Add to Cart</button>
+          </div>
+          <div class="product-info">
+            <p class="product-cat">Men · Kurtas</p>
+            <h3>Bandhgala Nehru Jacket</h3>
+            <div class="product-price">
+              <span class="price">₹3,999</span>
+              <span class="price-original">₹5,999</span>
+              <span class="discount">33% off</span>
+            </div>
+            <div class="product-sizes">
+              <span>M</span><span>L</span><span>XL</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="product-card" data-cat="women">
+          <div class="product-image">
+            <div class="placeholder-img product-placeholder">
+              <i class="fa-solid fa-person-dress"></i>
+            </div>
+            <div class="product-badges">
+              <span class="badge badge-hot">Hot</span>
+            </div>
+            <div class="product-actions">
+              <button class="action-btn" title="Wishlist"><i class="fa-regular fa-heart"></i></button>
+              <button class="action-btn" title="Quick View"><i class="fa-regular fa-eye"></i></button>
+            </div>
+            <button class="add-to-cart-overlay">Add to Cart</button>
+          </div>
+          <div class="product-info">
+            <p class="product-cat">Women · Co-ords</p>
+            <h3>Printed Co-ord Set</h3>
+            <div class="product-price">
+              <span class="price">₹2,799</span>
+              <span class="price-original">₹4,299</span>
+              <span class="discount">35% off</span>
+            </div>
+            <div class="product-sizes">
+              <span>XS</span><span>S</span><span>M</span><span>L</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="product-card" data-cat="men">
+          <div class="product-image">
+            <div class="placeholder-img product-placeholder">
+              <i class="fa-solid fa-vest-patches"></i>
+            </div>
+            <div class="product-actions">
+              <button class="action-btn" title="Wishlist"><i class="fa-regular fa-heart"></i></button>
+              <button class="action-btn" title="Quick View"><i class="fa-regular fa-eye"></i></button>
+            </div>
+            <button class="add-to-cart-overlay">Add to Cart</button>
+          </div>
+          <div class="product-info">
+            <p class="product-cat">Men · Trousers</p>
+            <h3>Formal Slim Fit Trousers</h3>
+            <div class="product-price">
+              <span class="price">₹1,999</span>
+              <span class="price-original">₹3,499</span>
+              <span class="discount">43% off</span>
+            </div>
+            <div class="product-sizes">
+              <span>28</span><span>30</span><span>32</span><span>34</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="product-card" data-cat="women">
+          <div class="product-image">
+            <div class="placeholder-img product-placeholder">
+              <i class="fa-solid fa-star"></i>
+            </div>
+            <div class="product-badges">
+              <span class="badge badge-sale">Sale</span>
+            </div>
+            <div class="product-actions">
+              <button class="action-btn" title="Wishlist"><i class="fa-regular fa-heart"></i></button>
+              <button class="action-btn" title="Quick View"><i class="fa-regular fa-eye"></i></button>
+            </div>
+            <button class="add-to-cart-overlay">Add to Cart</button>
+          </div>
+          <div class="product-info">
+            <p class="product-cat">Women · Tops</p>
+            <h3>Satin Ruched Blouse</h3>
+            <div class="product-price">
+              <span class="price">₹1,499</span>
+              <span class="price-original">₹2,499</span>
+              <span class="discount">40% off</span>
+            </div>
+            <div class="product-sizes">
+              <span>S</span><span>M</span><span>L</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="view-all-wrap">
+        <a href="#" class="btn btn-dark">View All Products</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== BRAND BANNER ===== -->
+  <section class="brand-banner">
+    <div class="brand-banner-content">
+      <p class="section-tag light">Our Story</p>
+      <h2>Fashion That Speaks<br /><em>Without Words</em></h2>
+      <p>At Lusso Vogue, we believe that style is a language. Every piece in our collection is crafted with precision, designed to make you feel confident, powerful, and effortlessly chic.</p>
+      <a href="#" class="btn btn-outline-light">Discover Our Story</a>
+    </div>
+  </section>
+
+  <!-- ===== BESTSELLERS ===== -->
+  <section class="section products-section bg-cream">
+    <div class="container">
+      <div class="section-header">
+        <p class="section-tag">Fan Favourites</p>
+        <h2>Best Sellers</h2>
+      </div>
+      <div class="products-grid products-grid-5">
+
+        <div class="product-card">
+          <div class="product-image">
+            <div class="placeholder-img product-placeholder">
+              <i class="fa-solid fa-shirt"></i>
+            </div>
+            <div class="product-badges"><span class="badge badge-hot">Best Seller</span></div>
+            <div class="product-actions">
+              <button class="action-btn"><i class="fa-regular fa-heart"></i></button>
+              <button class="action-btn"><i class="fa-regular fa-eye"></i></button>
+            </div>
+            <button class="add-to-cart-overlay">Add to Cart</button>
+          </div>
+          <div class="product-info">
+            <p class="product-cat">Men · Shirts</p>
+            <h3>Oxford Button-Down Shirt</h3>
+            <div class="product-price">
+              <span class="price">₹1,799</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="product-card">
+          <div class="product-image">
+            <div class="placeholder-img product-placeholder">
+              <i class="fa-solid fa-person-dress"></i>
+            </div>
+            <div class="product-badges"><span class="badge badge-hot">Best Seller</span></div>
+            <div class="product-actions">
+              <button class="action-btn"><i class="fa-regular fa-heart"></i></button>
+              <button class="action-btn"><i class="fa-regular fa-eye"></i></button>
+            </div>
+            <button class="add-to-cart-overlay">Add to Cart</button>
+          </div>
+          <div class="product-info">
+            <p class="product-cat">Women · Dresses</p>
+            <h3>Maxi Floral Dress</h3>
+            <div class="product-price">
+              <span class="price">₹2,999</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="product-card">
+          <div class="product-image">
+            <div class="placeholder-img product-placeholder">
+              <i class="fa-solid fa-vest"></i>
+            </div>
+            <div class="product-badges"><span class="badge badge-hot">Best Seller</span></div>
+            <div class="product-actions">
+              <button class="action-btn"><i class="fa-regular fa-heart"></i></button>
+              <button class="action-btn"><i class="fa-regular fa-eye"></i></button>
+            </div>
+            <button class="add-to-cart-overlay">Add to Cart</button>
+          </div>
+          <div class="product-info">
+            <p class="product-cat">Men · Blazers</p>
+            <h3>Velvet Evening Blazer</h3>
+            <div class="product-price">
+              <span class="price">₹7,999</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="product-card">
+          <div class="product-image">
+            <div class="placeholder-img product-placeholder">
+              <i class="fa-solid fa-gem"></i>
+            </div>
+            <div class="product-badges"><span class="badge badge-hot">Best Seller</span></div>
+            <div class="product-actions">
+              <button class="action-btn"><i class="fa-regular fa-heart"></i></button>
+              <button class="action-btn"><i class="fa-regular fa-eye"></i></button>
+            </div>
+            <button class="add-to-cart-overlay">Add to Cart</button>
+          </div>
+          <div class="product-info">
+            <p class="product-cat">Women · Ethnic</p>
+            <h3>Chanderi Lehenga Set</h3>
+            <div class="product-price">
+              <span class="price">₹8,499</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="product-card">
+          <div class="product-image">
+            <div class="placeholder-img product-placeholder">
+              <i class="fa-solid fa-star"></i>
+            </div>
+            <div class="product-badges"><span class="badge badge-hot">Best Seller</span></div>
+            <div class="product-actions">
+              <button class="action-btn"><i class="fa-regular fa-heart"></i></button>
+              <button class="action-btn"><i class="fa-regular fa-eye"></i></button>
+            </div>
+            <button class="add-to-cart-overlay">Add to Cart</button>
+          </div>
+          <div class="product-info">
+            <p class="product-cat">Men · Kurtas</p>
+            <h3>Festive Kurta Pajama Set</h3>
+            <div class="product-price">
+              <span class="price">₹3,499</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== USP STRIP ===== -->
+  <section class="usp-strip">
+    <div class="container">
+      <div class="usp-grid">
+        <div class="usp-item">
+          <i class="fa-solid fa-truck-fast"></i>
+          <div>
+            <h4>Free Shipping</h4>
+            <p>On orders above ₹999</p>
+          </div>
+        </div>
+        <div class="usp-item">
+          <i class="fa-solid fa-rotate-left"></i>
+          <div>
+            <h4>Easy Returns</h4>
+            <p>15-day hassle-free returns</p>
+          </div>
+        </div>
+        <div class="usp-item">
+          <i class="fa-solid fa-shield-halved"></i>
+          <div>
+            <h4>Secure Payment</h4>
+            <p>100% secure transactions</p>
+          </div>
+        </div>
+        <div class="usp-item">
+          <i class="fa-solid fa-headset"></i>
+          <div>
+            <h4>24/7 Support</h4>
+            <p>Dedicated customer care</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== INSTAGRAM SECTION ===== -->
+  <section class="section instagram-section">
+    <div class="container">
+      <div class="section-header">
+        <p class="section-tag">Follow Us</p>
+        <h2>@lussovogue</h2>
+        <p class="section-sub">Tag us in your photos for a chance to be featured</p>
+      </div>
+      <div class="insta-grid">
+        <div class="insta-item">
+          <div class="placeholder-img insta-placeholder"><i class="fa-brands fa-instagram"></i></div>
+          <div class="insta-overlay"><i class="fa-brands fa-instagram"></i></div>
+        </div>
+        <div class="insta-item">
+          <div class="placeholder-img insta-placeholder"><i class="fa-brands fa-instagram"></i></div>
+          <div class="insta-overlay"><i class="fa-brands fa-instagram"></i></div>
+        </div>
+        <div class="insta-item">
+          <div class="placeholder-img insta-placeholder"><i class="fa-brands fa-instagram"></i></div>
+          <div class="insta-overlay"><i class="fa-brands fa-instagram"></i></div>
+        </div>
+        <div class="insta-item">
+          <div class="placeholder-img insta-placeholder"><i class="fa-brands fa-instagram"></i></div>
+          <div class="insta-overlay"><i class="fa-brands fa-instagram"></i></div>
+        </div>
+        <div class="insta-item">
+          <div class="placeholder-img insta-placeholder"><i class="fa-brands fa-instagram"></i></div>
+          <div class="insta-overlay"><i class="fa-brands fa-instagram"></i></div>
+        </div>
+        <div class="insta-item">
+          <div class="placeholder-img insta-placeholder"><i class="fa-brands fa-instagram"></i></div>
+          <div class="insta-overlay"><i class="fa-brands fa-instagram"></i></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== NEWSLETTER ===== -->
+  <section class="newsletter-section">
+    <div class="container">
+      <div class="newsletter-inner">
+        <div class="newsletter-text">
+          <p class="section-tag light">Stay Updated</p>
+          <h2>Join the Lusso Club</h2>
+          <p>Subscribe for exclusive offers, new arrivals & style inspiration delivered to your inbox.</p>
+        </div>
+        <form class="newsletter-form">
+          <div class="form-row">
+            <input type="email" placeholder="Enter your email address" required />
+            <button type="submit" class="btn btn-primary">Subscribe</button>
+          </div>
+          <p class="form-note">By subscribing you agree to our Privacy Policy. Unsubscribe anytime.</p>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+
+        <div class="footer-brand">
+          <div class="footer-logo">
+            <span class="logo-main">LUSSO</span>
+            <span class="logo-sub">VOGUE</span>
+          </div>
+          <p>Premium fashion for the modern individual. Crafted with passion, delivered with purpose.</p>
+          <div class="social-links">
+            <a href="#" aria-label="Instagram"><i class="fa-brands fa-instagram"></i></a>
+            <a href="#" aria-label="Facebook"><i class="fa-brands fa-facebook-f"></i></a>
+            <a href="#" aria-label="Twitter"><i class="fa-brands fa-x-twitter"></i></a>
+            <a href="#" aria-label="Pinterest"><i class="fa-brands fa-pinterest-p"></i></a>
+            <a href="#" aria-label="YouTube"><i class="fa-brands fa-youtube"></i></a>
+          </div>
+        </div>
+
+        <div class="footer-col">
+          <h4>Shop</h4>
+          <ul>
+            <li><a href="#">Men's Collection</a></li>
+            <li><a href="#">Women's Collection</a></li>
+            <li><a href="#">New Arrivals</a></li>
+            <li><a href="#">Best Sellers</a></li>
+            <li><a href="#">Sale</a></li>
+            <li><a href="#">Gift Cards</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4>Help</h4>
+          <ul>
+            <li><a href="#">Track My Order</a></li>
+            <li><a href="#">Returns & Exchanges</a></li>
+            <li><a href="#">Shipping Policy</a></li>
+            <li><a href="#">Size Guide</a></li>
+            <li><a href="#">FAQs</a></li>
+            <li><a href="#">Contact Us</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4>Company</h4>
+          <ul>
+            <li><a href="#">About Us</a></li>
+            <li><a href="#">Careers</a></li>
+            <li><a href="#">Privacy Policy</a></li>
+            <li><a href="#">Terms of Service</a></li>
+            <li><a href="#">Sustainability</a></li>
+          </ul>
+          <div class="footer-contact">
+            <h4>Contact</h4>
+            <p><i class="fa fa-envelope"></i> hello@lussovogue.com</p>
+            <p><i class="fa fa-phone"></i> +91 98765 43210</p>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="footer-bottom">
+        <p>&copy; 2024 Lusso Vogue. All rights reserved.</p>
+        <div class="payment-icons">
+          <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/visa/visa-original.svg" alt="Visa" />
+          <span class="pay-icon">UPI</span>
+          <span class="pay-icon">COD</span>
+          <span class="pay-icon">EMI</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ===== BACK TO TOP ===== -->
+  <button class="back-to-top" id="backToTop" aria-label="Back to top">
+    <i class="fa fa-chevron-up"></i>
+  </button>
+
+  <script src="js/main.js"></script>
+</body>
+</html>
