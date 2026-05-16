@@ -1,9 +1,10 @@
 /** @type {import('next').NextConfig} */
 const isGithubPages = process.env.GITHUB_PAGES === "true";
+const isHostinger = process.env.HOSTINGER === "true";
 
 const nextConfig = {
   reactStrictMode: true,
-  output: isGithubPages ? "export" : undefined,
+  output: (isGithubPages || isHostinger) ? "export" : undefined,
   basePath: isGithubPages ? "/Dashboard" : "",
   assetPrefix: isGithubPages ? "/Dashboard/" : "",
   images: {
