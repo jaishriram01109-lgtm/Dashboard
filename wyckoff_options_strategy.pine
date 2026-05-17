@@ -1,0 +1,353 @@
+// Wyckoff Options Strategy — Nifty & Bank Nifty
+// Phase-based CE/PE strike selection with expiry timing & premium estimation
+// Use on: NIFTY or BANKNIFTY futures/spot charts
+
+//@version=6
+indicator(title     = "Wyckoff Options Strategy [Nifty/BankNifty]",
+     shorttitle     = "Wyckoff-OPT",
+     overlay        = true,
+     max_labels_count = 200,
+     max_lines_count  = 50,
+     max_boxes_count  = 20,
+     max_bars_back    = 500)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INPUTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+var GRP_INS = "Instrument"
+i_instrument    = input.string("Nifty",      "Instrument",      options = ["Nifty", "Bank Nifty"], group = GRP_INS)
+i_strikeStep    = input.int(50,              "Strike Step (₹)", minval = 25, maxval = 200,          group = GRP_INS, tooltip = "Nifty = 50, Bank Nifty = 100")
+i_lotSize       = input.int(65,              "Lot Size",        minval = 1,                         group = GRP_INS, tooltip = "Nifty = 65, Bank Nifty = 15")
+i_capital       = input.float(500000.0,      "Capital (₹)",     minval = 50000.0,                   group = GRP_INS)
+i_riskPct       = input.float(2.0,           "Risk % per Trade",minval = 0.5,  maxval = 5.0,        group = GRP_INS)
+
+var GRP_OPTS = "Options Parameters"
+i_maxPain       = input.float(0.0,   "Max Pain Level (update daily)",  minval = 0.0,    group = GRP_OPTS, tooltip = "From NSE options chain max pain calculator. 0 = disabled.")
+i_atmPremium    = input.float(100.0, "Approx ATM Premium (₹)",         minval = 5.0,    group = GRP_OPTS, tooltip = "Current ATM straddle half-price. Used for OTM premium estimation.")
+i_ivPct         = input.float(15.0,  "Current IV % (approx)",          minval = 5.0,    group = GRP_OPTS, tooltip = "Current Nifty VIX or IV of ATM option.")
+i_daysToExpiry  = input.int(5,       "Days to Expiry",                  minval = 0, maxval = 90, group = GRP_OPTS)
+
+var GRP_DETECT = "Phase Detection"
+i_lookback      = input.int(50,    "Range Lookback",     minval = 20, maxval = 200, group = GRP_DETECT)
+i_volMult       = input.float(2.5, "Climax Vol Mult",    minval = 1.5, maxval = 5.0, group = GRP_DETECT)
+
+var GRP_DISPLAY = "Display"
+i_showStrategy  = input.bool(true,  "Show Options Strategy Panel",    group = GRP_DISPLAY)
+i_showPayoff    = input.bool(true,  "Show Strike Lines on Chart",     group = GRP_DISPLAY)
+i_showMaxPain   = input.bool(true,  "Show Max Pain Line",             group = GRP_DISPLAY)
+i_showExpiry    = input.bool(true,  "Show Expiry Day Protocol",       group = GRP_DISPLAY)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CORE WYCKOFF PHASE ENGINE (inline — same logic as main indicator)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+vol20   = ta.sma(volume, 20)
+atr14   = ta.atr(14)
+atr50   = ta.atr(50)
+
+lbHigh  = ta.highest(high, i_lookback)
+lbLow   = ta.lowest(low,   i_lookback)
+rWidth  = lbHigh - lbLow
+
+isRng   = atr14 < atr50 * 1.35 and rWidth < atr50 * 14.0
+
+var float rH    = na
+var float rL    = na
+var bool  rOn   = false
+var bool  isAcc = true
+
+if isRng and not rOn
+    rH  := lbHigh
+    rL  := lbLow
+    rOn := true
+if rOn
+    if high > rH
+        rH := high
+    if low < rL
+        rL := low
+
+closePct() => rH > rL and not na(rH) ? (close - rL) / (rH - rL) * 100.0 : 50.0
+
+isSC  = volume > vol20 * i_volMult and close < close[1] and
+        (high - low) > atr14 * 1.5 and (close - low) / (high - low) > 0.35
+
+isBC  = volume > vol20 * i_volMult and close > close[1] and
+        (high - low) > atr14 * 1.5 and (close - low) / (high - low) < 0.65
+
+var bool spDone  = false
+var int  spBar   = na
+var bool spPend  = false
+var float spLow  = na
+
+if rOn and not na(rL) and barstate.isconfirmed
+    if low < rL * 0.9988 and close > rL and volume < vol20 * 1.6 and not spDone
+        spLow  := low
+        spBar  := bar_index
+        spPend := true
+
+if spPend and barstate.isconfirmed
+    bss = bar_index - spBar
+    if bss <= 3
+        if low < spLow * 0.997 and volume > vol20 * 1.4
+            spPend := false
+    else
+        spDone := true
+        spPend := false
+
+var bool utDone  = false
+var int  utBar   = na
+var bool utPend  = false
+var float utHigh = na
+
+if rOn and not na(rH) and barstate.isconfirmed
+    if high > rH * 1.0012 and close < rH and not utDone
+        utHigh := high
+        utBar  := bar_index
+        utPend := true
+        isAcc  := false
+
+if utPend and barstate.isconfirmed
+    bsu = bar_index - utBar
+    if bsu <= 3
+        if high > utHigh * 1.002 and volume > vol20 * 1.3
+            utPend := false
+    else
+        utDone := true
+        utPend := false
+
+var bool sosDone = false
+var bool sowDone = false
+
+if rOn and close > rH and volume > vol20 * 1.5 and close > open and barstate.isconfirmed and isAcc
+    sosDone := true
+
+if rOn and close < rL and volume > vol20 * 1.5 and close < open and barstate.isconfirmed and not isAcc
+    sowDone := true
+
+// Current phase string
+curPhase = sosDone  ? "PHASE D/E — MARKUP"   :
+           sowDone  ? "PHASE D/E — MARKDOWN"  :
+           spDone   ? "PHASE C — SPRING"      :
+           utDone   ? "PHASE C — UTAD"        :
+           rOn      ? "PHASE A/B — RANGING"   : "SCANNING"
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// OPTIONS STRATEGY LOGIC
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Round to nearest strike step
+roundToStrike(p) => math.round(p / i_strikeStep) * i_strikeStep
+
+atmStrike   = roundToStrike(close)
+rWidthPts   = rOn and not na(rH) and not na(rL) ? rH - rL : 0.0
+tgtMin      = isAcc ? rL + rWidthPts * 0.75 : rH - rWidthPts * 0.75
+tgtMax      = isAcc ? rL + rWidthPts * 1.5  : rH - rWidthPts * 1.5
+
+// Target strike (nearest to P&F min target)
+targetStrike = roundToStrike(tgtMin)
+otmDistance  = math.abs(targetStrike - atmStrike)
+otmSteps     = otmDistance / i_strikeStep
+
+// Rough OTM premium estimate using decay from ATM premium
+// Each strike step away = approx 20-30% less premium (simplified)
+otmPremiumEst = i_atmPremium * math.pow(0.72, otmSteps)
+
+// Risk per lot in rupees
+riskCapital = i_capital * (i_riskPct / 100.0)
+maxPremiumSpend = riskCapital  // maximum to spend on options premium
+lotsFromPremium = math.floor(maxPremiumSpend / (otmPremiumEst * i_lotSize))
+lotsFromPremium := math.max(1, lotsFromPremium)
+
+// Max loss = premium paid (defined risk, unlike futures)
+maxLoss     = otmPremiumEst * i_lotSize * lotsFromPremium
+// Target P&L (rough estimate: if price hits min target, option likely 3-5x at purchase)
+estPnL      = otmPremiumEst * 3.0 * i_lotSize * lotsFromPremium  // conservative 3x estimate
+
+// Expiry timing recommendation
+expiryRec   = i_daysToExpiry <= 3  ? "SAME WEEK — small size only" :
+              i_daysToExpiry <= 7  ? "CURRENT WEEK — standard size" :
+              i_daysToExpiry <= 15 ? "NEXT WEEK — preferred for swing" :
+                                     "MONTHLY — best for range-based setups"
+
+// Direction
+optDirection = (isAcc and (spDone or sosDone)) ? "CE — BUY CALL" :
+               (not isAcc and (utDone or sowDone)) ? "PE — BUY PUT" :
+               rOn ? "WAIT — phase not confirmed" : "NO SETUP"
+
+// Which strike to buy
+recStrike    = isAcc   ? roundToStrike(close + otmDistance)  :
+               not isAcc ? roundToStrike(close - otmDistance)  : atmStrike
+
+// Stop loss in options terms (exit if premium falls 50%)
+optSL        = otmPremiumEst * 0.5
+
+// IV context
+ivContext    = i_ivPct < 12.0 ? "LOW IV — Good to buy options" :
+               i_ivPct < 18.0 ? "MODERATE IV — Normal risk" :
+               i_ivPct < 25.0 ? "HIGH IV — Reduce size 30%" :
+                                 "EXTREME IV — Avoid buying options"
+
+// Tuesday/Wednesday expiry
+isExpiry     = dayofweek == dayofweek.tuesday or dayofweek == dayofweek.wednesday
+expLabel     = dayofweek == dayofweek.tuesday   ? "TUESDAY — Nifty Expiry" :
+               dayofweek == dayofweek.wednesday ? "WEDNESDAY — BankNifty Expiry" : "Non-Expiry"
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VISUAL: STRIKE LINES ON CHART
+// ═══════════════════════════════════════════════════════════════════════════════
+
+var line atmLine   = na
+var line recLine   = na
+var line tgtLine   = na
+var line maxLine   = na
+var line mpLine    = na
+
+if i_showPayoff and barstate.islast
+    if not na(atmLine)
+        line.delete(atmLine)
+    if not na(recLine)
+        line.delete(recLine)
+    if not na(tgtLine)
+        line.delete(tgtLine)
+    if not na(maxLine)
+        line.delete(maxLine)
+
+    atmLine := line.new(bar_index - 5, atmStrike, bar_index + 30, atmStrike,
+                        color = color.new(color.white, 60), style = line.style_dotted, width = 1)
+
+    if optDirection != "WAIT — phase not confirmed" and optDirection != "NO SETUP"
+        dirColor = str.contains(optDirection, "CE") ? color.new(color.lime, 20) : color.new(color.red, 20)
+        recLine := line.new(bar_index, recStrike, bar_index + 30, recStrike,
+                            color = dirColor, style = line.style_dashed, width = 2)
+        tgtLine := line.new(bar_index, targetStrike, bar_index + 30, targetStrike,
+                            color = color.new(color.yellow, 40), style = line.style_dashed, width = 1)
+
+        label.new(bar_index + 30, recStrike,
+                  "BUY " + str.tostring(recStrike) + " " + (str.contains(optDirection, "CE") ? "CE" : "PE"),
+                  color = dirColor, textcolor = color.white, size = size.small, style = label.style_label_left)
+        label.new(bar_index + 30, targetStrike,
+                  "Target: " + str.tostring(targetStrike),
+                  color = color.new(color.yellow, 40), textcolor = color.white, size = size.small, style = label.style_label_left)
+
+if i_showMaxPain and i_maxPain > 0.0 and barstate.islast
+    if not na(mpLine)
+        line.delete(mpLine)
+    mpLine := line.new(bar_index - 20, i_maxPain, bar_index + 30, i_maxPain,
+                       color = color.new(#ff9900, 30), style = line.style_dotted, width = 2)
+    label.new(bar_index + 30, i_maxPain, "Max Pain: " + str.tostring(i_maxPain),
+              color = color.new(#ff9900, 30), textcolor = color.white, size = size.small, style = label.style_label_left)
+
+// Expiry day background
+bgcolor(i_showExpiry and isExpiry ? color.new(color.orange, 95) : na, title = "Expiry Day")
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// OPTIONS STRATEGY DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════════
+
+if i_showStrategy and barstate.islast
+    t = table.new(position.bottom_left, 2, 16,
+                  bgcolor = color.new(color.black, 5),
+                  border_color = color.new(color.gray, 60), border_width = 1,
+                  frame_color  = color.new(color.gray, 40), frame_width  = 1)
+
+    // Header
+    table.cell(t, 0, 0, "WYCKOFF OPTIONS", text_color = color.white, text_size = size.small,
+               bgcolor = color.new(color.navy, 15), text_halign = text.align_center)
+    table.cell(t, 1, 0, i_instrument + " | " + syminfo.ticker, text_color = color.yellow,
+               text_size = size.small, bgcolor = color.new(color.navy, 15), text_halign = text.align_center)
+
+    // Phase
+    pc = str.contains(curPhase, "MARKUP") ? color.green : str.contains(curPhase, "MARKDOWN") ? color.red :
+         str.contains(curPhase, "SPRING") or str.contains(curPhase, "UTAD") ? color.orange : color.gray
+    table.cell(t, 0, 1, "Wyckoff Phase",  text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 1, curPhase, text_color = pc, text_size = size.small, text_halign = text.align_center)
+
+    // Direction
+    dc = str.contains(optDirection, "CE") ? color.lime : str.contains(optDirection, "PE") ? color.red : color.gray
+    table.cell(t, 0, 2, "Strategy",       text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 2, optDirection, text_color = dc, text_size = size.small, text_halign = text.align_center,
+               bgcolor = dc == color.lime ? color.new(color.lime, 90) : dc == color.red ? color.new(color.red, 90) : color.new(color.black, 0))
+
+    // Recommended strike
+    table.cell(t, 0, 3, "Strike to Buy",  text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 3, str.tostring(recStrike) + (str.contains(optDirection, "CE") ? " CE" : str.contains(optDirection, "PE") ? " PE" : " —"),
+               text_color = color.white, text_size = size.small, text_halign = text.align_center)
+
+    // OTM distance
+    table.cell(t, 0, 4, "OTM Distance",   text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 4, str.tostring(otmDistance) + " pts (" + str.tostring(otmSteps) + " strikes)",
+               text_color = color.white, text_size = size.small, text_halign = text.align_center)
+
+    // Premium estimate
+    table.cell(t, 0, 5, "Est. Premium",   text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 5, "₹" + str.tostring(math.round(otmPremiumEst, 1)),
+               text_color = color.yellow, text_size = size.small, text_halign = text.align_center)
+
+    // Stop loss (exit premium level)
+    table.cell(t, 0, 6, "Option SL",      text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 6, "Exit if premium < ₹" + str.tostring(math.round(optSL, 1)),
+               text_color = color.red, text_size = size.small, text_halign = text.align_center)
+
+    // Target strike
+    table.cell(t, 0, 7, "Target Strike",  text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 7, str.tostring(targetStrike) + " (Wyckoff min)",
+               text_color = isAcc ? color.lime : color.red, text_size = size.small, text_halign = text.align_center)
+
+    // Lots recommended
+    table.cell(t, 0, 8, "Lots (2% risk)", text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 8, str.tostring(lotsFromPremium) + " lots",
+               text_color = color.white, text_size = size.small, text_halign = text.align_center)
+
+    // Max loss
+    table.cell(t, 0, 9, "Max Loss",       text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 9, "₹" + str.tostring(math.round(maxLoss, 0)),
+               text_color = color.red, text_size = size.small, text_halign = text.align_center)
+
+    // Est P&L at 3x
+    table.cell(t, 0, 10, "Est P&L (3x)",  text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 10, "₹" + str.tostring(math.round(estPnL, 0)),
+               text_color = color.lime, text_size = size.small, text_halign = text.align_center)
+
+    // IV context
+    ivc = i_ivPct < 12 ? color.lime : i_ivPct < 18 ? color.yellow : color.red
+    table.cell(t, 0, 11, "IV Context",    text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 11, ivContext, text_color = ivc, text_size = size.small, text_halign = text.align_center)
+
+    // Days to expiry
+    dtec = i_daysToExpiry <= 3 ? color.red : i_daysToExpiry <= 7 ? color.orange : color.lime
+    table.cell(t, 0, 12, "Days to Expiry", text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 12, str.tostring(i_daysToExpiry) + "d — " + expiryRec,
+               text_color = dtec, text_size = size.small, text_halign = text.align_center)
+
+    // Max pain
+    table.cell(t, 0, 13, "Max Pain",      text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 13, i_maxPain > 0 ? str.tostring(i_maxPain) : "Not Set",
+               text_color = i_maxPain > 0 ? color.orange : color.gray, text_size = size.small, text_halign = text.align_center)
+
+    // Expiry day
+    table.cell(t, 0, 14, "Today",         text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 14, expLabel, text_color = isExpiry ? color.orange : color.gray,
+               text_size = size.small, text_halign = text.align_center)
+
+    // Capital deployed
+    table.cell(t, 0, 15, "Capital",       text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 15, "₹" + str.tostring(math.round(i_capital / 100000.0, 2)) + "L | Risk: " +
+               str.tostring(i_riskPct) + "%",
+               text_color = color.white, text_size = size.small, text_halign = text.align_center)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ALERTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+alertcondition(spDone and bar_index == spBar,
+     title = "Options: Spring — Buy CE",
+     message = "🟢 Spring on {{ticker}} — BUY CALL | Strike: consider ATM+1 | Stop: 50% of premium | Size per Wyckoff P&F target")
+
+alertcondition(utDone and bar_index == utBar,
+     title = "Options: UTAD — Buy PE",
+     message = "🔴 UTAD on {{ticker}} — BUY PUT | Strike: consider ATM-1 | Stop: 50% of premium | Target: AR low via P&F count")
+
+alertcondition(dayofweek == dayofweek.tuesday and spDone and bar_index == spBar,
+     title = "Tuesday Expiry — CE Setup",
+     message = "⚡ Tuesday Spring on {{ticker}} — Buy CE expiring TODAY | Target: max pain | Exit by 3:15 PM IST")

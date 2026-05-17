@@ -1,0 +1,264 @@
+// Wyckoff Position Sizer & Trade Planner
+// Full trade plan: entry, stop, targets, lots, margin, P&L, scaling
+// Works for Nifty futures, Bank Nifty futures, and NSE stocks
+
+//@version=6
+indicator(title    = "Wyckoff Position Sizer & Trade Planner",
+     shorttitle    = "Wyckoff-PS",
+     overlay       = true,
+     max_lines_count  = 20,
+     max_labels_count = 30,
+     max_bars_back    = 500)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INPUTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+var GRP_TRADE = "Trade Parameters"
+i_entry       = input.float(0.0,    "Entry Price",          minval = 0.0, group = GRP_TRADE, tooltip = "Your planned entry price. 0 = use current close.")
+i_stop        = input.float(0.0,    "Stop Loss Price",      minval = 0.0, group = GRP_TRADE)
+i_target1     = input.float(0.0,    "Target 1 (Wyckoff Min)", minval = 0.0, group = GRP_TRADE)
+i_target2     = input.float(0.0,    "Target 2 (Wyckoff Max)", minval = 0.0, group = GRP_TRADE)
+i_direction   = input.string("LONG","Direction",            options = ["LONG", "SHORT"], group = GRP_TRADE)
+
+var GRP_CAP = "Capital & Risk"
+i_capital     = input.float(500000.0, "Total Capital (₹)",   minval = 10000.0, group = GRP_CAP)
+i_riskPct     = input.float(2.0,      "Risk % per Trade",    minval = 0.25, maxval = 10.0, step = 0.25, group = GRP_CAP)
+i_scalingOn   = input.bool(true,      "Enable Scaling Plan", group = GRP_CAP, tooltip = "50% at entry (spring), 50% at LPS")
+
+var GRP_INS = "Instrument"
+i_instrument  = input.string("Nifty",  "Instrument Type", options = ["Nifty", "Bank Nifty", "NSE Stock"], group = GRP_INS)
+i_lotSizeIn   = input.int(65,          "Lot Size",        minval = 1, group = GRP_INS, tooltip = "Nifty=65, Bank Nifty=15, Stocks=1 (or custom)")
+i_marginPerLot= input.float(110000.0,  "Margin per Lot (₹)", minval = 1000.0, group = GRP_INS, tooltip = "Current SPAN+Exposure margin. Nifty futures ≈ ₹1.1L, BankNifty ≈ ₹75K")
+
+var GRP_PNF = "P&F Cause Count"
+i_pnfCount    = input.int(0,    "P&F Column Count (0=auto from range)", minval = 0, group = GRP_PNF)
+i_boxSize     = input.float(50.0, "P&F Box Size",   minval = 1.0,  group = GRP_PNF, tooltip = "Nifty = 50pts, BankNifty = 100pts, Stocks = % of price/5")
+i_reversal    = input.int(3,      "P&F Reversal",   minval = 1, maxval = 5, group = GRP_PNF)
+
+var GRP_DISPLAY = "Display"
+i_showLines   = input.bool(true, "Show Trade Lines on Chart", group = GRP_DISPLAY)
+i_showDash    = input.bool(true, "Show Trade Planner Table",  group = GRP_DISPLAY)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CALCULATIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Use current close if entry not specified
+entryPrice  = i_entry > 0.0 ? i_entry : close
+stopPrice   = i_stop  > 0.0 ? i_stop  : (i_direction == "LONG" ? entryPrice * 0.985 : entryPrice * 1.015)
+
+// Risk per unit
+riskPerUnit = math.abs(entryPrice - stopPrice)
+riskPerLot  = riskPerUnit * i_lotSizeIn
+
+// Capital allocation
+maxRiskAmt  = i_capital * (i_riskPct / 100.0)
+maxLots     = riskPerLot > 0.0 ? math.floor(maxRiskAmt / riskPerLot) : 0
+maxLots    := math.max(1, maxLots)
+
+// Scaling plan
+lot1        = math.ceil(maxLots * 0.5)   // entry (spring)
+lot2        = maxLots - lot1              // LPS add
+
+// P&F target (if column count given, else use input targets)
+pnfCause    = i_pnfCount > 0 ? float(i_pnfCount) * i_boxSize * float(i_reversal) : 0.0
+pnfTargetMin = pnfCause > 0.0 ? (i_direction == "LONG" ? stopPrice + pnfCause * 0.75 : stopPrice - pnfCause * 0.75) : i_target1
+pnfTargetMax = pnfCause > 0.0 ? (i_direction == "LONG" ? stopPrice + pnfCause * 1.5  : stopPrice - pnfCause * 1.5)  : i_target2
+
+t1 = i_target1 > 0.0 ? i_target1 : pnfTargetMin
+t2 = i_target2 > 0.0 ? i_target2 : pnfTargetMax
+
+// P&L calculations
+pnlT1       = (t1 - entryPrice) * (i_direction == "LONG" ? 1.0 : -1.0) * i_lotSizeIn * maxLots
+pnlT2       = (t2 - entryPrice) * (i_direction == "LONG" ? 1.0 : -1.0) * i_lotSizeIn * maxLots
+pnlStop     = (stopPrice - entryPrice) * (i_direction == "LONG" ? 1.0 : -1.0) * i_lotSizeIn * maxLots
+
+// R:R ratios
+rrT1        = riskPerUnit > 0.0 ? math.abs(t1 - entryPrice) / riskPerUnit : 0.0
+rrT2        = riskPerUnit > 0.0 ? math.abs(t2 - entryPrice) / riskPerUnit : 0.0
+
+// Margin required
+marginTotal = maxLots * i_marginPerLot
+marginPct   = i_capital > 0.0 ? marginTotal / i_capital * 100.0 : 0.0
+
+// Brokerage estimate (Zerodha/discount broker: ₹20 per order × 4 orders round trip)
+brokerageFees = 80.0 + (maxLots * 15.0)  // flat + STT/exchange fees estimate
+netPnlT1    = pnlT1 - brokerageFees
+netPnlT2    = pnlT2 - brokerageFees
+
+// Breakeven price (including fees)
+feePerUnit  = brokerageFees / (i_lotSizeIn * maxLots)
+breakevenPx = i_direction == "LONG" ? entryPrice + feePerUnit : entryPrice - feePerUnit
+
+// P&F cause display
+causeStr    = pnfCause > 0.0 ? str.tostring(math.round(pnfCause, 0)) + " pts" :
+              riskPerUnit > 0 ? "Not set (using input targets)" : "—"
+
+// Setup quality check
+rrOk        = rrT1 >= 2.0
+marginOk    = marginPct <= 60.0
+riskOk      = maxRiskAmt <= i_capital * 0.02
+tradeValid  = rrOk and marginOk and riskOk
+
+tradeGrade  = rrT1 >= 3.0 and marginOk and riskOk ? "A+ EXECUTE" :
+              rrT1 >= 2.0 and marginOk             ? "A PROCEED" :
+              rrT1 >= 1.5                           ? "B REDUCE SIZE" :
+                                                      "SKIP — R:R < 1.5"
+
+gradeColor  = str.contains(tradeGrade, "A+") ? color.lime  :
+              str.contains(tradeGrade, "A ")  ? color.green :
+              str.contains(tradeGrade, "B ")  ? color.yellow : color.red
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CHART LINES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+var line entryLine = na
+var line stopLine  = na
+var line t1Line    = na
+var line t2Line    = na
+var line beLine    = na
+
+if i_showLines and barstate.islast
+    if not na(entryLine)
+        line.delete(entryLine)
+    if not na(stopLine)
+        line.delete(stopLine)
+    if not na(t1Line)
+        line.delete(t1Line)
+    if not na(t2Line)
+        line.delete(t2Line)
+    if not na(beLine)
+        line.delete(beLine)
+
+    entryLine := line.new(bar_index - 3, entryPrice, bar_index + 25, entryPrice,
+                          color = color.new(color.white, 20), style = line.style_solid, width = 2)
+    label.new(bar_index + 25, entryPrice, "ENTRY: " + str.tostring(math.round(entryPrice, 1)),
+              color = color.new(color.white, 20), textcolor = color.black,
+              size = size.small, style = label.style_label_left)
+
+    stopLine := line.new(bar_index - 3, stopPrice, bar_index + 25, stopPrice,
+                         color = color.new(color.red, 20), style = line.style_solid, width = 2)
+    label.new(bar_index + 25, stopPrice, "STOP: " + str.tostring(math.round(stopPrice, 1)),
+              color = color.new(color.red, 20), textcolor = color.white,
+              size = size.small, style = label.style_label_left)
+
+    beLine := line.new(bar_index - 3, breakevenPx, bar_index + 25, breakevenPx,
+                       color = color.new(color.gray, 50), style = line.style_dotted, width = 1)
+
+    if t1 > 0.0
+        t1Line := line.new(bar_index - 3, t1, bar_index + 25, t1,
+                           color = color.new(color.lime, 20), style = line.style_dashed, width = 2)
+        label.new(bar_index + 25, t1, "T1: " + str.tostring(math.round(t1, 1)) + " (R:" + str.tostring(math.round(rrT1, 1)) + ")",
+                  color = color.new(color.lime, 20), textcolor = color.black,
+                  size = size.small, style = label.style_label_left)
+
+    if t2 > 0.0
+        t2Line := line.new(bar_index - 3, t2, bar_index + 25, t2,
+                           color = color.new(#00ff88, 20), style = line.style_dashed, width = 1)
+        label.new(bar_index + 25, t2, "T2: " + str.tostring(math.round(t2, 1)) + " (R:" + str.tostring(math.round(rrT2, 1)) + ")",
+                  color = color.new(#00ff88, 20), textcolor = color.black,
+                  size = size.small, style = label.style_label_left)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TRADE PLANNER TABLE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+if i_showDash and barstate.islast
+    t = table.new(position.top_right, 2, 22,
+                  bgcolor = color.new(color.black, 5),
+                  border_color = color.new(color.gray, 60), border_width = 1,
+                  frame_color  = color.new(color.gray, 40), frame_width  = 1)
+
+    // Header
+    hclr = i_direction == "LONG" ? color.new(color.lime, 60) : color.new(color.red, 60)
+    table.cell(t, 0, 0, "TRADE PLANNER", text_color = color.white, text_size = size.normal,
+               bgcolor = hclr, text_halign = text.align_center)
+    table.cell(t, 1, 0, i_direction + " | " + i_instrument, text_color = color.yellow,
+               text_size = size.normal, bgcolor = hclr, text_halign = text.align_center)
+
+    // Separator
+    table.cell(t, 0, 1, "── ENTRY ──", text_color = color.gray, text_size = size.small, text_halign = text.align_center)
+    table.cell(t, 1, 1, "",            text_color = color.gray, text_size = size.small)
+
+    table.cell(t, 0, 2,  "Entry Price",     text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 2,  str.tostring(math.round(entryPrice, 1)), text_color = color.white, text_size = size.small, text_halign = text.align_right)
+
+    table.cell(t, 0, 3,  "Stop Loss",       text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 3,  str.tostring(math.round(stopPrice, 1)) + " (" + str.tostring(math.round(riskPerUnit, 1)) + " pts risk)",
+               text_color = color.red, text_size = size.small, text_halign = text.align_right)
+
+    table.cell(t, 0, 4,  "Breakeven",       text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 4,  str.tostring(math.round(breakevenPx, 1)), text_color = color.gray, text_size = size.small, text_halign = text.align_right)
+
+    // Targets
+    table.cell(t, 0, 5, "── TARGETS ──",   text_color = color.gray, text_size = size.small, text_halign = text.align_center)
+    table.cell(t, 1, 5, "",                text_color = color.gray, text_size = size.small)
+
+    table.cell(t, 0, 6,  "Target 1 (Min)",  text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 6,  str.tostring(math.round(t1, 1)) + " | R:" + str.tostring(math.round(rrT1, 2)) + "x",
+               text_color = color.lime, text_size = size.small, text_halign = text.align_right)
+
+    table.cell(t, 0, 7,  "Target 2 (Max)",  text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 7,  str.tostring(math.round(t2, 1)) + " | R:" + str.tostring(math.round(rrT2, 2)) + "x",
+               text_color = color.green, text_size = size.small, text_halign = text.align_right)
+
+    table.cell(t, 0, 8,  "P&F Cause",       text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 8,  causeStr, text_color = color.white, text_size = size.small, text_halign = text.align_right)
+
+    // Position sizing
+    table.cell(t, 0, 9, "── SIZING ──",    text_color = color.gray, text_size = size.small, text_halign = text.align_center)
+    table.cell(t, 1, 9, "",               text_color = color.gray, text_size = size.small)
+
+    table.cell(t, 0, 10, "Max Lots",        text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 10, str.tostring(maxLots) + " lots × " + str.tostring(i_lotSizeIn) + " = " +
+               str.tostring(maxLots * i_lotSizeIn) + " units",
+               text_color = color.white, text_size = size.small, text_halign = text.align_right)
+
+    table.cell(t, 0, 11, "Lot 1 (Spring)",  text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 11, str.tostring(i_scalingOn ? lot1 : maxLots) + " lots @ " + str.tostring(math.round(entryPrice, 1)),
+               text_color = color.lime, text_size = size.small, text_halign = text.align_right)
+
+    table.cell(t, 0, 12, "Lot 2 (LPS add)", text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 12, i_scalingOn ? str.tostring(lot2) + " lots @ LPS level" : "Scaling off",
+               text_color = color.teal, text_size = size.small, text_halign = text.align_right)
+
+    table.cell(t, 0, 13, "Margin Required", text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 13, "₹" + str.tostring(math.round(marginTotal / 100000.0, 2)) + "L (" +
+               str.tostring(math.round(marginPct, 1)) + "% of capital)",
+               text_color = marginPct > 60.0 ? color.red : color.white, text_size = size.small, text_halign = text.align_right)
+
+    // P&L
+    table.cell(t, 0, 14, "── P&L ──",      text_color = color.gray, text_size = size.small, text_halign = text.align_center)
+    table.cell(t, 1, 14, "",               text_color = color.gray, text_size = size.small)
+
+    table.cell(t, 0, 15, "Risk Amount",     text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 15, "₹" + str.tostring(math.round(math.abs(pnlStop), 0)) +
+               " (" + str.tostring(i_riskPct) + "% of capital)",
+               text_color = color.red, text_size = size.small, text_halign = text.align_right)
+
+    table.cell(t, 0, 16, "P&L at T1 (net)", text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 16, "₹" + str.tostring(math.round(netPnlT1, 0)),
+               text_color = color.lime, text_size = size.small, text_halign = text.align_right)
+
+    table.cell(t, 0, 17, "P&L at T2 (net)", text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 17, "₹" + str.tostring(math.round(netPnlT2, 0)),
+               text_color = color.green, text_size = size.small, text_halign = text.align_right)
+
+    table.cell(t, 0, 18, "Brokerage Est.",  text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 18, "₹" + str.tostring(math.round(brokerageFees, 0)),
+               text_color = color.gray, text_size = size.small, text_halign = text.align_right)
+
+    // Trade grade
+    table.cell(t, 0, 19, "── VERDICT ──",  text_color = color.gray, text_size = size.small, text_halign = text.align_center)
+    table.cell(t, 1, 19, "",               text_color = color.gray, text_size = size.small)
+
+    table.cell(t, 0, 20, "Trade Grade",    text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 20, tradeGrade, text_color = gradeColor, text_size = size.small,
+               text_halign = text.align_center,
+               bgcolor = str.contains(tradeGrade, "A+") ? color.new(color.lime, 88) : color.new(color.black, 0))
+
+    table.cell(t, 0, 21, "Capital",        text_color = color.silver, text_size = size.small)
+    table.cell(t, 1, 21, "₹" + str.tostring(math.round(i_capital / 100000.0, 1)) + "L",
+               text_color = color.white, text_size = size.small, text_halign = text.align_right)
