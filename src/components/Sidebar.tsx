@@ -10,6 +10,7 @@ import {
   Layers2, Scale, Smile, Coins, Landmark, BarChart4, Globe2, FileBarChart,
   UserCheck, Package, ArrowUpCircle, Eye, Receipt, Flag,
   ChevronDown, ChevronRight, Home,
+  Crown, Camera, Instagram, Wand2, ScanFace, CheckCircle, Calendar, MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -73,6 +74,15 @@ const NAV_ITEMS = [
   { id: "etf",          label: "ETF Analytics",     icon: BarChart4,    badge: null,   group: "tools" },
   { id: "tax",          label: "Tax Optimizer",     icon: Receipt,      badge: null,   group: "tools" },
   { id: "goals",        label: "Goal Planner",      icon: Flag,         badge: null,   group: "tools" },
+  // ── AI INFLUENCER ────────────────────────────────────────────────────
+  { id: "luxury-hub",      label: "Model Hub",         icon: Crown,        badge: "AI",   group: "luxury" },
+  { id: "model-identity",  label: "Model Identity",    icon: ScanFace,     badge: null,   group: "luxury" },
+  { id: "content-studio",  label: "Content Studio",    icon: Wand2,        badge: "GEN",  group: "luxury" },
+  { id: "agent-hub",       label: "Agent Network",     icon: Camera,       badge: "9",    group: "luxury" },
+  { id: "instagram-growth",label: "Instagram Growth",  icon: Instagram,    badge: "LIVE", group: "luxury" },
+  { id: "approval-queue",  label: "Approval Queue",    icon: CheckCircle,  badge: "2",    group: "luxury" },
+  { id: "dm-manager",      label: "DM Auto-Reply",     icon: MessageCircle,badge: "AUTO", group: "luxury" },
+  { id: "campaign-planner",label: "Campaign Planner",  icon: Calendar,     badge: null,   group: "luxury" },
 ];
 
 const GROUPS: { id: string; label: string }[] = [
@@ -82,14 +92,16 @@ const GROUPS: { id: string; label: string }[] = [
   { id: "portfolio", label: "PORTFOLIO" },
   { id: "research",  label: "RESEARCH" },
   { id: "tools",     label: "TOOLS" },
+  { id: "luxury",    label: "✦ AI INFLUENCER" },
 ];
 
 interface SidebarProps {
   active: string;
   onChange: (id: string) => void;
+  approvalBadge?: string | null;
 }
 
-export default function Sidebar({ active, onChange }: SidebarProps) {
+export default function Sidebar({ active, onChange, approvalBadge }: SidebarProps) {
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -102,8 +114,9 @@ export default function Sidebar({ active, onChange }: SidebarProps) {
     return NAV_ITEMS.filter((i) => i.label.toLowerCase().includes(q));
   }, [query]);
 
-  const badgeClass = (badge: string | null) => {
+  const badgeClass = (badge: string | null, group?: string) => {
     if (!badge) return "";
+    if (group === "luxury") return "bg-gold-600/20 text-gold-400 border border-gold-700/30";
     if (badge === "HOT") return "bg-signal-bear/20 text-signal-bear";
     if (badge === "AI" || badge === "NEW") return "bg-signal-accumulate/20 text-signal-accumulate";
     if (badge === "GMP") return "bg-gold-500/20 text-gold-500";
@@ -115,21 +128,29 @@ export default function Sidebar({ active, onChange }: SidebarProps) {
   const NavButton = ({ item }: { item: typeof NAV_ITEMS[0] }) => {
     const Icon = item.icon;
     const isActive = active === item.id;
+    const isLuxury = item.group === "luxury";
+    const badge = item.id === "approval-queue" ? (approvalBadge !== undefined ? approvalBadge : item.badge) : item.badge;
     return (
       <button
         onClick={() => onChange(item.id)}
         className={cn(
           "w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-left transition-all text-[11px] font-medium group",
           isActive
-            ? "bg-maroon-800/25 border border-maroon-800/50 text-ivory-100 shadow-glow-maroon"
+            ? isLuxury
+              ? "bg-gold-700/20 border border-gold-700/40 text-ivory-100"
+              : "bg-maroon-800/25 border border-maroon-800/50 text-ivory-100 shadow-glow-maroon"
             : "text-ivory-500 hover:text-ivory-200 hover:bg-bg-hover border border-transparent"
         )}
       >
-        <Icon className={cn("w-3.5 h-3.5 flex-shrink-0 transition-colors", isActive ? "text-maroon-400" : "text-ivory-600 group-hover:text-ivory-400")} />
+        <Icon className={cn("w-3.5 h-3.5 flex-shrink-0 transition-colors",
+          isActive
+            ? isLuxury ? "text-gold-400" : "text-maroon-400"
+            : "text-ivory-600 group-hover:text-ivory-400"
+        )} />
         <span className="flex-1 tracking-wide truncate">{item.label}</span>
-        {item.badge && (
-          <span className={cn("label-tag text-[8px] px-1 py-0.5 rounded flex-shrink-0", badgeClass(item.badge))}>
-            {item.badge}
+        {badge && (
+          <span className={cn("label-tag text-[8px] px-1 py-0.5 rounded flex-shrink-0", badgeClass(badge, item.group))}>
+            {badge}
           </span>
         )}
       </button>
@@ -175,7 +196,9 @@ export default function Sidebar({ active, onChange }: SidebarProps) {
                   onClick={() => toggleGroup(group.id)}
                   className={cn(
                     "w-full flex items-center gap-1.5 px-3 pt-3 pb-1 text-[9px] font-bold uppercase tracking-widest transition-colors",
-                    hasActive ? "text-maroon-400" : "text-ivory-700 hover:text-ivory-500"
+                    group.id === "luxury"
+                      ? hasActive ? "text-gold-400" : "text-gold-700 hover:text-gold-500"
+                      : hasActive ? "text-maroon-400" : "text-ivory-700 hover:text-ivory-500"
                   )}
                 >
                   {isCollapsed
@@ -199,6 +222,7 @@ export default function Sidebar({ active, onChange }: SidebarProps) {
         </div>
         <div className="text-[10px] text-ivory-700 font-mono">NSE · BSE · FII/DII · Options</div>
         <div className="text-[10px] text-maroon-700 font-mono font-semibold">SmartFlow AI v2.0.0 · 52 Modules</div>
+        <div className="text-[10px] text-gold-700 font-mono font-semibold">✦ ZEPHYR VALE · 9 Agents Active</div>
       </div>
     </aside>
   );
