@@ -152,8 +152,28 @@ export default function Dashboard() {
   const [activeSection, setActiveSection] = useState("home");
   const [alerts, setAlerts] = useState(alertData);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [approvalBadge, setApprovalBadge] = useState<string | null>("2");
 
   const unreadAlerts = alerts.filter(a => !a.read).length;
+
+  useEffect(() => {
+    const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const fetchPending = async () => {
+      try {
+        const res = await fetch(`${API}/api/luxury/content-queue?status=pending`);
+        if (res.ok) {
+          const data = await res.json();
+          const count: number = data.pending ?? 0;
+          setApprovalBadge(count > 0 ? String(count) : null);
+        }
+      } catch {
+        // backend offline — keep current badge
+      }
+    };
+    fetchPending();
+    const interval = setInterval(fetchPending, 30_000);
+    return () => clearInterval(interval);
+  }, []);
 
   const Section = SECTIONS[activeSection];
 
@@ -186,6 +206,7 @@ export default function Dashboard() {
           <Sidebar
             active={activeSection}
             onChange={(id) => { setActiveSection(id); setSidebarOpen(false); }}
+            approvalBadge={approvalBadge}
           />
         </div>
 

@@ -266,6 +266,47 @@ export const luxuryApi = {
   }> {
     return apiFetch("/api/luxury/health");
   },
+
+  // ─── Image & Full Pipeline ───────────────────────────────────────────
+
+  /** Generate image via FLUX.1-dev / SDXL / Stability AI */
+  async generateImage(params: {
+    prompt: string;
+    negative_prompt?: string;
+    width?: number;
+    height?: number;
+  }): Promise<{ url: string; provider: string; success: boolean }> {
+    return apiFetch("/api/luxury/generate-image", {
+      method: "POST",
+      body: JSON.stringify(params),
+    });
+  },
+
+  /** Full autonomous pipeline: prompt → image → caption → Telegram approval */
+  async createFull(req: PromptRequest): Promise<{
+    content_id: string;
+    status: string;
+    message: string;
+  }> {
+    return apiFetch("/api/luxury/create-full", {
+      method: "POST",
+      body: JSON.stringify(req),
+    });
+  },
+
+  /** Add a post to the schedule queue */
+  async schedulePost(params: {
+    content_id: string;
+    content_type: string;
+    media_url: string;
+    caption: string;
+    scheduled_for?: string;
+  }): Promise<{ post_id: string; scheduled_for: string; status: string }> {
+    return apiFetch("/api/luxury/schedule/add", {
+      method: "POST",
+      body: JSON.stringify(params),
+    });
+  },
 };
 
 export default luxuryApi;

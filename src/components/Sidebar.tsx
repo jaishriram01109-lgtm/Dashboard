@@ -98,9 +98,10 @@ const GROUPS: { id: string; label: string }[] = [
 interface SidebarProps {
   active: string;
   onChange: (id: string) => void;
+  approvalBadge?: string | null;
 }
 
-export default function Sidebar({ active, onChange }: SidebarProps) {
+export default function Sidebar({ active, onChange, approvalBadge }: SidebarProps) {
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -128,6 +129,7 @@ export default function Sidebar({ active, onChange }: SidebarProps) {
     const Icon = item.icon;
     const isActive = active === item.id;
     const isLuxury = item.group === "luxury";
+    const badge = item.id === "approval-queue" ? (approvalBadge !== undefined ? approvalBadge : item.badge) : item.badge;
     return (
       <button
         onClick={() => onChange(item.id)}
@@ -146,9 +148,9 @@ export default function Sidebar({ active, onChange }: SidebarProps) {
             : "text-ivory-600 group-hover:text-ivory-400"
         )} />
         <span className="flex-1 tracking-wide truncate">{item.label}</span>
-        {item.badge && (
-          <span className={cn("label-tag text-[8px] px-1 py-0.5 rounded flex-shrink-0", badgeClass(item.badge, item.group))}>
-            {item.badge}
+        {badge && (
+          <span className={cn("label-tag text-[8px] px-1 py-0.5 rounded flex-shrink-0", badgeClass(badge, item.group))}>
+            {badge}
           </span>
         )}
       </button>
