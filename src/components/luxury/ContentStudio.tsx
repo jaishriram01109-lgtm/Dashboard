@@ -114,6 +114,9 @@ export default function ContentStudio() {
   const [lighting, setLighting] = useState(LIGHTING[0]);
   const [tab, setTab] = useState<"builder" | "queue" | "library">("builder");
   const [copied, setCopied] = useState<number | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imgGenLoading, setImgGenLoading] = useState(false);
+  const [sentToQueue, setSentToQueue] = useState(false);
 
   const { loading: genLoading, result: genResult, generate } = useLuxuryPrompt();
 
@@ -125,6 +128,8 @@ export default function ContentStudio() {
   const qualityScore = genResult?.quality_score;
 
   const handleGenerate = () => {
+    setImageUrl(null);
+    setSentToQueue(false);
     generate({
       content_type: activeType as "photo" | "reel" | "story" | "caption",
       location,
@@ -132,6 +137,48 @@ export default function ContentStudio() {
       mood,
       lighting,
     });
+  };
+
+  // Full pipeline: generate image via backend
+  const handleFullGenerate = async () => {
+    setImgGenLoading(true);
+    setSentToQueue(false);
+    try {
+      const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(`${BASE}/api/luxury/generate-image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: previewPrompt,
+          negative_prompt: "cartoon, anime, artificial, plastic face, low quality",
+          width: 1024, height: 1280,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.url) setImageUrl(data.url);
+      }
+    } catch {
+      // Backend unavailable — show placeholder
+      setImageUrl(`https://placehold.co/1024x1280/0d0b06/DAA520?text=ZEPHYR+VALE%0AFLUX+Generation`);
+    } finally {
+      setImgGenLoading(false);
+    }
+  };
+
+  const handleSendToQueue = async () => {
+    try {
+      const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      await fetch(`${BASE}/api/luxury/content/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content_type: activeType,
+          location, outfit, mood, lighting,
+        }),
+      });
+    } catch { /* ignore */ }
+    setSentToQueue(true);
   };
 
   const handleCopy = (id: number, text: string) => {
@@ -245,11 +292,20 @@ export default function ContentStudio() {
             <button
               onClick={handleGenerate}
               disabled={genLoading}
-              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               style={{ background: "linear-gradient(135deg, #DAA520, #8B6914)", color: "#070708" }}>
               {genLoading
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</>
-                : <><Wand2 className="w-4 h-4" /> Generate Premium Prompt + Content</>}
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating Prompt...</>
+                : <><Wand2 className="w-4 h-4" /> Generate Prompt + Caption</>}
+            </button>
+
+            <button
+              onClick={handleFullGenerate}
+              disabled={imgGenLoading || !previewPrompt}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed border border-gold-700/30 bg-gold-600/5 text-gold-400 hover:bg-gold-600/10">
+              {imgGenLoading
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> FLUX Generating Image...</>
+                : <><Image className="w-4 h-4" /> Generate Image (FLUX.1-dev)</>}
             </button>
           </div>
 
@@ -316,6 +372,66 @@ export default function ContentStudio() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Generated image display panel */}
+      {(imageUrl || imgGenLoading) && tab === "builder" && (
+        <div className="card-glass rounded-xl p-5 border border-gold-700/30">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xs font-semibold text-ivory-300 uppercase tracking-wider flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-gold-500" />
+              Generated Image — FLUX.1-dev
+            </h3>
+            {!sentToQueue ? (
+              <button
+                onClick={handleSendToQueue}
+                className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                style={{ background: "linear-gradient(135deg, #DAA520, #8B6914)", color: "#070708" }}>
+                <Send className="w-3.5 h-3.5" />
+                Send to Approval Queue
+              </button>
+            ) : (
+              <span className="flex items-center gap-1.5 text-xs text-signal-bull">
+                <CheckCircle className="w-3.5 h-3.5" /> Added to queue
+              </span>
+            )}
+          </div>
+          {imgGenLoading ? (
+            <div className="flex flex-col items-center justify-center h-64 gap-3">
+              <Loader2 className="w-8 h-8 text-gold-500 animate-spin" />
+              <div className="text-xs text-ivory-600 font-mono">FLUX.1-dev generating · ~30s</div>
+              <div className="text-[10px] text-ivory-700">ZephyrBase-v4 LoRA · 35 steps · cfg 3.5</div>
+            </div>
+          ) : imageUrl ? (
+            <div className="flex gap-5 flex-col md:flex-row">
+              <div className="shrink-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={imageUrl}
+                  alt="ZEPHYR VALE generated"
+                  className="w-full md:w-64 rounded-xl border border-gold-700/20 object-cover"
+                  style={{ maxHeight: "340px" }}
+                />
+              </div>
+              <div className="flex-1 space-y-3">
+                <div className="p-3 rounded-lg bg-bg-secondary border border-bg-border">
+                  <div className="text-[9px] text-ivory-700 uppercase mb-1">Generated Caption</div>
+                  <div className="text-xs text-ivory-400 leading-relaxed">{previewCaption}</div>
+                </div>
+                <div className="p-3 rounded-lg bg-bg-secondary border border-bg-border">
+                  <div className="text-[9px] text-ivory-700 uppercase mb-1">Hashtags</div>
+                  <div className="text-[10px] text-gold-600/80 font-mono leading-relaxed">{previewHashtags}</div>
+                </div>
+                {qualityScore && (
+                  <div className="flex items-center gap-2">
+                    <Star className="w-3.5 h-3.5 text-gold-500" />
+                    <span className="text-xs text-signal-bull font-mono">Quality Score: {qualityScore}/100</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
 

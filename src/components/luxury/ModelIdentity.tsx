@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Crown, ScanFace, Sliders, CheckCircle, Layers, Palette,
   RefreshCw, Upload, Lock, Unlock, Eye, Zap, Star,
   ChevronRight, BarChart3, Shield, Sparkles,
 } from "lucide-react";
+import { luxuryApi } from "@/lib/luxuryApi";
 
 // ─── Mock model DNA ────────────────────────────────────────────────────────
 const FACIAL_FEATURES = [
@@ -70,6 +71,22 @@ function ScoreBar({ score, color = "#DAA520" }: { score: number; color?: string 
 // ─── Main ─────────────────────────────────────────────────────────────────
 export default function ModelIdentity() {
   const [tab, setTab] = useState<"dna" | "style" | "lora" | "anchors">("dna");
+  const [identity, setIdentity] = useState<Record<string, unknown> | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchIdentity = async () => {
+    setRefreshing(true);
+    try {
+      const data = await luxuryApi.getModelIdentity();
+      setIdentity(data);
+    } catch {
+      // Backend unavailable — keep static display
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => { fetchIdentity(); }, []);
 
   const TABS = [
     { id: "dna",     label: "Face DNA",      icon: ScanFace   },
@@ -91,6 +108,13 @@ export default function ModelIdentity() {
           <p className="text-xs text-ivory-700 mt-1 font-mono">Face consistency engine · Character DNA · LoRA embeddings · Reference anchors</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={fetchIdentity}
+            className="p-1.5 rounded-lg bg-bg-secondary border border-bg-border hover:border-gold-700/30 transition-colors">
+            <RefreshCw className={`w-3.5 h-3.5 text-ivory-600 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
+          {identity && (
+            <span className="text-[10px] text-emerald-400 font-mono">✓ Live data</span>
+          )}
           <div className="px-3 py-1.5 rounded-lg bg-signal-bull/10 border border-signal-bull/20 flex items-center gap-2">
             <Lock className="w-3 h-3 text-signal-bull" />
             <span className="text-xs font-semibold text-signal-bull">IDENTITY LOCKED</span>

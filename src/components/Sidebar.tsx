@@ -10,7 +10,7 @@ import {
   Layers2, Scale, Smile, Coins, Landmark, BarChart4, Globe2, FileBarChart,
   UserCheck, Package, ArrowUpCircle, Eye, Receipt, Flag,
   ChevronDown, ChevronRight, Home,
-  Crown, Camera, Instagram, Wand2, ScanFace, CheckCircle, Calendar,
+  Crown, Camera, Instagram, Wand2, ScanFace, CheckCircle, Calendar, MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -81,6 +81,7 @@ const NAV_ITEMS = [
   { id: "agent-hub",       label: "Agent Network",     icon: Camera,       badge: "9",    group: "luxury" },
   { id: "instagram-growth",label: "Instagram Growth",  icon: Instagram,    badge: "LIVE", group: "luxury" },
   { id: "approval-queue",  label: "Approval Queue",    icon: CheckCircle,  badge: "2",    group: "luxury" },
+  { id: "dm-manager",      label: "DM Auto-Reply",     icon: MessageCircle,badge: "AUTO", group: "luxury" },
   { id: "campaign-planner",label: "Campaign Planner",  icon: Calendar,     badge: null,   group: "luxury" },
 ];
 

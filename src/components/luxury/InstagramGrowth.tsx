@@ -6,6 +6,7 @@ import {
   Hash, Clock, BarChart3, Zap, Star, Target, Globe,
   ArrowUpRight, ArrowDownRight, Play, Image, Layers,
 } from "lucide-react";
+import { useInstagramGrowth } from "@/lib/useLuxuryAgent";
 import {
   AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip,
   BarChart, Bar, Cell, LineChart, Line, CartesianGrid,
@@ -90,6 +91,19 @@ const KPI = [
 // ─── Main ─────────────────────────────────────────────────────────────────
 export default function InstagramGrowth() {
   const [tab, setTab] = useState<"overview" | "content" | "hashtags" | "timing">("overview");
+  const { metrics, loading: metricsLoading } = useInstagramGrowth();
+
+  // Build KPI from real metrics when available, else mock
+  const liveKPI = metrics
+    ? [
+        { label: "Followers",      value: `${(metrics.follower_snapshot.current / 1000).toFixed(1)}K`, delta: `+${metrics.follower_snapshot.gained_7d.toLocaleString()}`, positive: true, icon: Users },
+        { label: "Avg Eng Rate",   value: `${metrics.engagement.avg_eng_rate.toFixed(1)}%`,  delta: "+1.2%",  positive: true, icon: Heart },
+        { label: "Avg Reach",      value: `${Math.round(metrics.engagement.avg_reach / 1000)}K`,    delta: "+41K",   positive: true, icon: Eye },
+        { label: "Avg Likes",      value: metrics.engagement.avg_likes.toFixed(0),          delta: "+124",   positive: true, icon: Star },
+        { label: "Avg Comments",   value: metrics.engagement.avg_comments.toFixed(0),       delta: "+18",    positive: true, icon: MessageCircle },
+        { label: "Growth %",       value: `+${metrics.follower_snapshot.growth_pct.toFixed(1)}%`, delta: "7 days", positive: true, icon: TrendingUp },
+      ]
+    : KPI;
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -114,7 +128,7 @@ export default function InstagramGrowth() {
 
       {/* KPI row */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        {KPI.map(k => (
+        {liveKPI.map(k => (
           <div key={k.label} className="card-glass rounded-xl p-3 flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <k.icon className="w-3.5 h-3.5 text-gold-500" />

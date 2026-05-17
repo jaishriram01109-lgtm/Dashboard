@@ -70,6 +70,7 @@ const ContentStudio     = dynamic(() => import("@/components/luxury/ContentStudi
 const AgentHub          = dynamic(() => import("@/components/luxury/AgentHub"),          { ssr: false });
 const InstagramGrowth   = dynamic(() => import("@/components/luxury/InstagramGrowth"),   { ssr: false });
 const ApprovalQueue     = dynamic(() => import("@/components/luxury/ApprovalQueue"),     { ssr: false });
+const DMManager         = dynamic(() => import("@/components/luxury/DMManager"),         { ssr: false });
 const CampaignPlanner   = dynamic(() => import("@/components/luxury/CampaignPlanner"),  { ssr: false });
 
 function LoadingSpinner() {
@@ -143,6 +144,7 @@ const SECTIONS: Record<string, React.ComponentType> = {
   "agent-hub":        AgentHub,
   "instagram-growth": InstagramGrowth,
   "approval-queue":   ApprovalQueue,
+  "dm-manager":       DMManager,
   "campaign-planner": CampaignPlanner,
 };
 

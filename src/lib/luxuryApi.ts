@@ -217,6 +217,10 @@ export const luxuryApi = {
     return apiFetch("/api/luxury/instagram/insights");
   },
 
+  async getInstagramMessages(): Promise<Record<string, unknown>> {
+    return apiFetch("/api/luxury/instagram/messages");
+  },
+
   // ─── Schedule ────────────────────────────────────────────────────────
 
   async getSchedule(): Promise<{
