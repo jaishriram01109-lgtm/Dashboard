@@ -1,7 +1,8 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Brain, Eye, Target, Zap, TrendingUp, Users, DollarSign, AlertTriangle } from "lucide-react";
-import { stockData, alertData } from "@/lib/mockData";
+import { useAngelQuotes } from "@/hooks/useAngelData";
+import { calcSmartMoneyScore } from "@/lib/angelData";
 import { cn, fmt, fmtPct, scoreColor, scoreBg, colorFromChange } from "@/lib/utils";
 import {
   AreaChart, Area, ResponsiveContainer, Tooltip, BarChart, Bar,
@@ -110,14 +111,31 @@ function SmartMoneyScoreGauge({ score, label }: { score: number; label: string }
 
 export default function SmartMoneyAnalysis() {
   const [activeTab, setActiveTab] = useState<"signals" | "flow" | "wyckoff" | "ict">("signals");
-  const [liveSignals, setLiveSignals] = useState(0);
+  const { quotes, isLive } = useAngelQuotes();
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLiveSignals(n => (n + 1) % 100);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
+  // Live signal stocks: confidence derived from real market data
+  const liveSignals = useMemo(() => {
+    return smSignals.map(group => ({
+      ...group,
+      stocks: group.stocks.map(stock => {
+        const q = quotes.get(stock.symbol);
+        if (!q) return stock;
+        const score = calcSmartMoneyScore(q);
+        const priceTag = ` LTP ₹${q.ltp.toLocaleString("en-IN", { maximumFractionDigits: 1 })} (${q.changePct >= 0 ? "+" : ""}${q.changePct.toFixed(2)}%).`;
+        return { ...stock, confidence: score, evidence: stock.evidence + priceTag };
+      }),
+    }));
+  }, [quotes]);
+
+  // Live Wyckoff: confidence from real momentum
+  const liveWyckoff = useMemo(() => {
+    return wyckoffData.map(w => {
+      const q = quotes.get(w.symbol);
+      if (!q) return w;
+      const confidence = Math.min(99, Math.max(50, calcSmartMoneyScore(q)));
+      return { ...w, confidence };
+    });
+  }, [quotes]);
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -130,8 +148,10 @@ export default function SmartMoneyAnalysis() {
           <p className="text-xs text-ivory-500">Institutional footprint detection • ICT/SMC concepts • Wyckoff analysis</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-signal-bull live-dot" />
-          <span className="text-xs text-signal-bull font-mono">SCANNING LIVE</span>
+          <div className={`w-2 h-2 rounded-full ${isLive ? "bg-signal-bull live-dot" : "bg-ivory-600"}`} />
+          <span className={`text-xs font-mono ${isLive ? "text-signal-bull" : "text-ivory-600"}`}>
+            {isLive ? "● LIVE — Angel One" : "SIMULATED"}
+          </span>
         </div>
       </div>
 
@@ -175,7 +195,7 @@ export default function SmartMoneyAnalysis() {
       {/* Smart Money Signals */}
       {activeTab === "signals" && (
         <div className="space-y-4">
-          {smSignals.map(group => (
+          {liveSignals.map(group => (
             <div key={group.type} className="card-glass rounded-xl overflow-hidden">
               <div className="px-4 py-3 border-b border-bg-border flex items-center gap-2">
                 <span className="text-lg">{group.icon}</span>
@@ -312,7 +332,7 @@ export default function SmartMoneyAnalysis() {
                   </tr>
                 </thead>
                 <tbody>
-                  {wyckoffData.map(w => (
+                  {liveWyckoff.map(w => (
                     <tr key={w.symbol} className="border-b border-bg-border/50 hover:bg-bg-hover">
                       <td className="px-3 py-2.5 font-mono font-bold text-xs text-ivory-100">{w.symbol}</td>
                       <td className="px-3 py-2.5">

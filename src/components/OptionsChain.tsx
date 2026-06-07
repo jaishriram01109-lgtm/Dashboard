@@ -1,6 +1,7 @@
 "use client";
 import { useState, useMemo } from "react";
 import { Layers, TrendingUp, TrendingDown, AlertTriangle, BarChart2 } from "lucide-react";
+import { useAngelQuotes } from "@/hooks/useAngelData";
 import { cn, fmt, scoreColor } from "@/lib/utils";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -52,11 +53,11 @@ function computeMaxPain(chain: ReturnType<typeof genOptionsChain>) {
 }
 
 const SYMBOLS = [
-  { label: "NIFTY", spot: 24856.20 },
-  { label: "BANKNIFTY", spot: 53248.75 },
-  { label: "HAL", spot: 4842.35 },
-  { label: "TCS", spot: 4284.60 },
-  { label: "RVNL", spot: 584.20 },
+  { label: "NIFTY",      spot: 24856.20 },
+  { label: "BANKNIFTY",  spot: 53248.75 },
+  { label: "TCS",        spot: 4284.60  },
+  { label: "HDFCBANK",   spot: 1842.00  },
+  { label: "RELIANCE",   spot: 2900.00  },
 ];
 
 // ─── OI BAR CHART ────────────────────────────────────────────
@@ -135,8 +136,16 @@ function IVSmileChart({ chain }: { chain: ReturnType<typeof genOptionsChain> }) 
 }
 
 export default function OptionsChain() {
-  const [selectedSymbol, setSelectedSymbol] = useState(SYMBOLS[0]);
+  const [selectedKey, setSelectedKey] = useState("NIFTY");
   const [showColumns, setShowColumns] = useState<"all" | "oi" | "iv">("all");
+  const { quotes, isLive } = useAngelQuotes();
+
+  // Overlay real spot price when Angel One session is live
+  const selectedSymbol = useMemo(() => {
+    const base = SYMBOLS.find(s => s.label === selectedKey) ?? SYMBOLS[0];
+    const q = quotes.get(selectedKey);
+    return q ? { ...base, spot: q.ltp } : base;
+  }, [selectedKey, quotes]);
 
   const chain = useMemo(() => genOptionsChain(selectedSymbol.spot, selectedSymbol.label), [selectedSymbol]);
   const totalCallOI = chain.reduce((s, r) => s + r.call.oi, 0);
@@ -154,14 +163,17 @@ export default function OptionsChain() {
             <Layers className="w-5 h-5 text-maroon-600" />
             Options Chain & OI Analytics
           </h2>
-          <p className="text-xs text-ivory-500">Put-Call Ratio • Max Pain • IV Smile • Open Interest Heatmap</p>
+          <p className="text-xs text-ivory-500">
+            Put-Call Ratio • Max Pain • IV Smile • Open Interest Heatmap
+            {isLive && <span className="ml-2 text-signal-bull font-semibold">● Live spot — Angel One</span>}
+          </p>
         </div>
         <div className="flex gap-2">
           {SYMBOLS.map(s => (
             <button key={s.label}
-              onClick={() => setSelectedSymbol(s)}
+              onClick={() => setSelectedKey(s.label)}
               className={cn("px-2.5 py-1 rounded text-xs font-mono font-bold transition-colors",
-                selectedSymbol.label === s.label
+                selectedKey === s.label
                   ? "bg-maroon-800 text-ivory-100"
                   : "text-ivory-500 hover:text-ivory-200 bg-bg-card border border-bg-border"
               )}>{s.label}</button>

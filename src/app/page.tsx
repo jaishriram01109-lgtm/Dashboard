@@ -131,8 +131,12 @@ const SECTIONS: Record<string, React.ComponentType> = {
   goals:     GoalPlanner,
 };
 
-// Sections that have real/live data — all others show ★ mock indicator
-const LIVE_SECTIONS = new Set(["home"]);
+// Sections with live data (no ★ mock indicator shown)
+const LIVE_SECTIONS = new Set([
+  "home", "portfolio", "watchlist", "scanner", "breadth",
+  "global", "currency", "commodity", "bonds", "index", "stocks",
+  "sectors", "advanced-chart", "options", "fno", "smart-money",
+]);
 
 function isValidSection(id: string) {
   return id === "home" || id in SECTIONS;

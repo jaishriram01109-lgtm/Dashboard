@@ -1,16 +1,21 @@
 // Sections that have real/live data sources wired up
 export const LIVE_SECTION_IDS = new Set<string>([
   "home",
-  "portfolio",   // real Angel One holdings
-  "watchlist",   // real Angel One quotes
-  "scanner",     // real Angel One momentum scan
-  "breadth",     // real Angel One A/D data
-  "global",      // Yahoo Finance global indices/currencies/commodities
-  "currency",    // Yahoo Finance currency pairs
-  "commodity",   // Yahoo Finance commodities
-  "bonds",       // Yahoo Finance US bond yields
-  "index",       // Angel One NIFTY/BANKNIFTY live prices
-  "stocks",      // Angel One stock intelligence live prices
+  "portfolio",        // real Angel One holdings
+  "watchlist",        // real Angel One quotes
+  "scanner",          // real Angel One momentum scan
+  "breadth",          // real Angel One A/D data
+  "global",           // Yahoo Finance global indices/currencies/commodities
+  "currency",         // Yahoo Finance currency pairs
+  "commodity",        // Yahoo Finance commodities
+  "bonds",            // Yahoo Finance US bond yields
+  "index",            // Angel One NIFTY/BANKNIFTY live prices
+  "stocks",           // Angel One stock intelligence live prices
+  "sectors",          // Yahoo Finance sector indices
+  "advanced-chart",   // Angel One OHLCV candles
+  "options",          // Angel One live spot price
+  "fno",              // Angel One live futures prices
+  "smart-money",      // Angel One live stock signals
 ]);
 
 import {
