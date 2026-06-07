@@ -113,6 +113,23 @@ export default function SmartMoneyAnalysis() {
   const [activeTab, setActiveTab] = useState<"signals" | "flow" | "wyckoff" | "ict">("signals");
   const { quotes, isLive } = useAngelQuotes();
 
+  // Composite scores computed from live data; fallback to static when no session
+  const composite = useMemo(() => {
+    const vals: number[] = [];
+    quotes.forEach(q => { if (typeof q.changePct === "number") vals.push(calcSmartMoneyScore(q)); });
+    if (vals.length === 0) return { overall: 84, accumulation: 88, institutional: 76, breakout: 82, momentum: 71 };
+    const avg     = vals.reduce((s, v) => s + v, 0) / vals.length;
+    const bullPct = vals.filter(v => v > 55).length / vals.length;
+    const boPct   = vals.filter(v => v > 70).length / vals.length;
+    return {
+      overall:       Math.round(Math.min(99, avg)),
+      accumulation:  Math.round(Math.min(99, avg + bullPct * 12)),
+      institutional: Math.round(Math.min(99, avg * 0.94 + 2)),
+      breakout:      Math.round(Math.min(99, boPct * 80 + 18)),
+      momentum:      Math.round(Math.min(99, avg * 0.88 + 4)),
+    };
+  }, [quotes]);
+
   // Live signal stocks: confidence derived from real market data
   const liveSignals = useMemo(() => {
     return smSignals.map(group => ({
@@ -161,11 +178,11 @@ export default function SmartMoneyAnalysis() {
           Smart Money Composite Dashboard
         </div>
         <div className="flex flex-wrap gap-6 justify-around">
-          <SmartMoneyScoreGauge score={84} label="Overall SM Score" />
-          <SmartMoneyScoreGauge score={88} label="Accumulation Index" />
-          <SmartMoneyScoreGauge score={76} label="Institutional Bias" />
-          <SmartMoneyScoreGauge score={82} label="Breakout Readiness" />
-          <SmartMoneyScoreGauge score={71} label="Momentum Quality" />
+          <SmartMoneyScoreGauge score={composite.overall}       label="Overall SM Score" />
+          <SmartMoneyScoreGauge score={composite.accumulation}  label="Accumulation Index" />
+          <SmartMoneyScoreGauge score={composite.institutional} label="Institutional Bias" />
+          <SmartMoneyScoreGauge score={composite.breakout}      label="Breakout Readiness" />
+          <SmartMoneyScoreGauge score={composite.momentum}      label="Momentum Quality" />
         </div>
       </div>
 
