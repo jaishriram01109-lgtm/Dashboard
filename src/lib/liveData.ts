@@ -18,6 +18,11 @@ export const LIVE_SECTION_IDS = new Set<string>([
   "smart-money",      // Angel One live stock signals
   "screener",         // Angel One live price/rsi/smScore overlay
   "highlows",         // Angel One live 52W high/low breakout data
+  "heatmap",          // Angel One live price/change overlay
+  "trades",           // Angel One live LTP vs entry distance
+  "alerts",           // Angel One live price-movement alerts
+  "charts",           // Angel One live market breadth
+  "ai-predict",       // Angel One live LTP on stock predictions
 ]);
 
 import {
