@@ -5,6 +5,7 @@ export interface YFQuote { price: number; change: number; changePct: number }
 async function batchFetch(symbols: string[]): Promise<Map<string, YFQuote>> {
   const symsStr = symbols.map(encodeURIComponent).join(",");
   const fields = "regularMarketPrice,regularMarketChange,regularMarketChangePercent";
+  const directUrl = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${symsStr}&fields=${fields}`;
 
   const parse = (data: unknown): Map<string, YFQuote> => {
     const map = new Map<string, YFQuote>();
@@ -16,16 +17,16 @@ async function batchFetch(symbols: string[]): Promise<Map<string, YFQuote>> {
     return map;
   };
 
-  // 1) Try server-side proxy (works on Vercel, 404s on Hostinger static — caught below)
+  // 1) Server-side proxy (works on Vercel; 503 on Hostinger — caught below)
   try {
     const res = await fetch(`/api/yf?symbols=${symsStr}`, { cache: "no-store" });
     if (res.ok) {
       const map = parse(await res.json());
       if (map.size) return map;
     }
-  } catch { /* not on Vercel, fall through */ }
+  } catch { /* not on Vercel */ }
 
-  // 2) Direct Yahoo Finance (may hit CORS on static hosts)
+  // 2) Direct Yahoo Finance (works in many browsers)
   const directUrls = [
     `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${symsStr}&fields=${fields}`,
     `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symsStr}&fields=${fields}`,
@@ -39,12 +40,24 @@ async function batchFetch(symbols: string[]): Promise<Map<string, YFQuote>> {
     } catch { /* next */ }
   }
 
-  // 3) CORS proxy fallback
-  try {
-    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(directUrls[0])}`;
-    const res = await fetch(proxyUrl, { cache: "no-store" });
-    if (res.ok) { const map = parse(await res.json()); if (map.size) return map; }
-  } catch { /* ignore */ }
+  // 3) CORS proxy chain — try multiple in parallel for speed
+  const proxies = [
+    `https://corsproxy.io/?${encodeURIComponent(directUrl)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(directUrl)}`,
+    `https://thingproxy.freeboard.io/fetch/${directUrl}`,
+  ];
+  const raceResults = await Promise.allSettled(
+    proxies.map(async (proxy) => {
+      const res = await fetch(proxy, { cache: "no-store" });
+      if (!res.ok) throw new Error("not ok");
+      const map = parse(await res.json());
+      if (!map.size) throw new Error("empty");
+      return map;
+    })
+  );
+  for (const r of raceResults) {
+    if (r.status === "fulfilled" && r.value.size > 0) return r.value;
+  }
 
   return new Map();
 }

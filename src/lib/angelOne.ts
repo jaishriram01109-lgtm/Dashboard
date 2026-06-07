@@ -124,8 +124,10 @@ async function getPublicIP(): Promise<string> {
 
 export async function loginAngelOne(
   password: string,
-  totp: string
+  totp: string,
+  clientCode?: string
 ): Promise<{ session: AngelSession | null; error: string }> {
+  const code = clientCode?.trim() || ANGEL_CLIENT_ID;
   try {
     const ip = await getPublicIP();
     const res = await angelFetch(
@@ -142,7 +144,7 @@ export async function loginAngelOne(
           "X-MACAddress": "00:00:00:00:00:00",
           "X-PrivateKey": ANGEL_API_KEY,
         },
-        body: JSON.stringify({ clientcode: ANGEL_CLIENT_ID, password, totp }),
+        body: JSON.stringify({ clientcode: code, password, totp }),
       }
     );
     const data = await res.json();

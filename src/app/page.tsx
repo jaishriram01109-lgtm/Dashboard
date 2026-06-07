@@ -273,6 +273,22 @@ export default function Dashboard() {
           </button>
 
           <div className="p-3 md:p-6 max-w-screen-2xl mx-auto pb-24 lg:pb-6">
+            {/* Angel One not connected banner */}
+            {!angelActive && !refreshing && (
+              <div className="mb-3 flex items-center justify-between gap-3 bg-maroon-900/30 border border-maroon-700/40 rounded-xl px-4 py-2.5">
+                <div className="flex items-center gap-2 text-xs text-ivory-400">
+                  <span className="w-2 h-2 rounded-full bg-signal-bear inline-block flex-shrink-0" />
+                  <span>Angel One connected nahi hai — <span className="text-ivory-600">demo data dikh raha hai</span></span>
+                </div>
+                <button
+                  onClick={() => setShowLogin(true)}
+                  className="flex-shrink-0 text-[11px] font-bold text-maroon-300 hover:text-maroon-100 bg-maroon-800/40 hover:bg-maroon-800/70 border border-maroon-700/50 rounded-lg px-3 py-1.5 transition-colors"
+                >
+                  ⚡ Connect Angel One
+                </button>
+              </div>
+            )}
+
             {activeSection !== "home" && (
               <div className="flex items-center justify-between mb-3">
                 <button
