@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TrendingUp, TrendingDown, Shield } from "lucide-react";
+import { fetchBondYields, BOND_YF, type YFQuote } from "@/lib/yahooData";
 import {
   LineChart, BarChart, AreaChart,
   Line, Bar, Area,
@@ -60,17 +61,35 @@ const ratingColors: Record<string, string> = {
 
 export default function BondMarket() {
   const [activeTab, setActiveTab] = useState<"yield-curve" | "corporate" | "fii-debt">("yield-curve");
+  const [live, setLive] = useState<Map<string, YFQuote>>(new Map());
+  const [isLive, setIsLive] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      const m = await fetchBondYields();
+      if (m.size) { setLive(m); setIsLive(true); }
+    };
+    load();
+    const id = setInterval(load, 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const benchmarkYield = GSEC.find((g) => g.tenor === "10Y")!;
   const rbIRepo = 6.50;
   const realYield = benchmarkYield.yield - 4.83;
+
+  const usYield10Y = live.get(BOND_YF["US 10Y"]);
+  const usYield30Y = live.get(BOND_YF["US 30Y"]);
+  const us3M = live.get(BOND_YF["US 3M"]);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-ivory-100 tracking-wide">Bond &amp; Debt Market</h2>
-          <p className="text-xs text-ivory-500 mt-0.5">G-Sec yield curve · Corporate bonds · FII debt flows</p>
+          <p className="text-xs text-ivory-500 mt-0.5 flex items-center gap-1">
+            {isLive ? <><span className="w-1.5 h-1.5 rounded-full bg-signal-bull inline-block animate-pulse" /> US Yields Live — Yahoo Finance · India G-Sec simulated</> : "G-Sec yield curve · Corporate bonds · FII debt flows"}
+          </p>
         </div>
         <div className="flex gap-1.5">
           {(["yield-curve", "corporate", "fii-debt"] as const).map((t) => (
@@ -86,9 +105,19 @@ export default function BondMarket() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: "RBI Repo Rate", value: `${rbIRepo}%`, sub: "Current policy rate", color: "text-ivory-200" },
-          { label: "10Y G-Sec", value: `${benchmarkYield.yield}%`, sub: `${benchmarkYield.change >= 0 ? "+" : ""}${benchmarkYield.change}% today`, color: benchmarkYield.change < 0 ? "text-signal-bull" : "text-signal-bear" },
-          { label: "Real Yield", value: `${realYield.toFixed(2)}%`, sub: "10Y − CPI 4.83%", color: realYield > 0 ? "text-signal-bull" : "text-signal-bear" },
-          { label: "Yield Spread", value: `${(benchmarkYield.yield - rbIRepo).toFixed(2)}%`, sub: "10Y vs Repo", color: "text-gold-500" },
+          { label: "India 10Y G-Sec", value: `${benchmarkYield.yield}%`, sub: `${benchmarkYield.change >= 0 ? "+" : ""}${benchmarkYield.change}% today`, color: benchmarkYield.change < 0 ? "text-signal-bull" : "text-signal-bear" },
+          {
+            label: "US 10Y Treasury",
+            value: usYield10Y ? `${usYield10Y.price.toFixed(2)}%` : "—",
+            sub: usYield10Y ? `${usYield10Y.changePct >= 0 ? "+" : ""}${usYield10Y.changePct.toFixed(2)}% today · Live` : "Yahoo Finance",
+            color: usYield10Y ? (usYield10Y.changePct < 0 ? "text-signal-bull" : "text-signal-bear") : "text-ivory-500",
+          },
+          {
+            label: "US 3M T-Bill",
+            value: us3M ? `${us3M.price.toFixed(2)}%` : `${(benchmarkYield.yield - rbIRepo).toFixed(2)}%`,
+            sub: us3M ? `Live · ${us3M.changePct >= 0 ? "+" : ""}${us3M.changePct.toFixed(2)}%` : "10Y vs Repo (India)",
+            color: "text-gold-500",
+          },
         ].map(({ label, value, sub, color }) => (
           <div key={label} className="card-base p-3">
             <div className="text-[10px] text-ivory-600 uppercase tracking-wider">{label}</div>

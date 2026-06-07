@@ -2,6 +2,8 @@
 import { useState, useMemo } from "react";
 import { Search, Filter, SlidersHorizontal, Star, TrendingUp, TrendingDown, X, ChevronUp, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAngelQuotes } from "@/hooks/useAngelData";
+import { calcSmartMoneyScore, calcAIScore, dayRSI } from "@/lib/angelData";
 
 interface ScreenerStock {
   symbol: string;
@@ -89,6 +91,22 @@ export default function StockScreener() {
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("aiScore");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const { quotes, isLive } = useAngelQuotes();
+
+  const liveStocks = useMemo<ScreenerStock[]>(() =>
+    STOCKS.map(s => {
+      const q = quotes.get(s.symbol);
+      if (!q) return s;
+      return {
+        ...s,
+        price: q.ltp,
+        change1d: q.changePct,
+        volSurge: q.volume > 0 ? Math.min(q.volume / 2_000_000, 10) : s.volSurge,
+        rsi: dayRSI(q),
+        smScore: calcSmartMoneyScore(q),
+        aiScore: calcAIScore(q),
+      };
+    }), [quotes]);
 
   const applyPreset = (p: typeof PRESETS[0]) => {
     if (activePreset === p.label) {
@@ -101,7 +119,7 @@ export default function StockScreener() {
   };
 
   const results = useMemo(() => {
-    return STOCKS.filter(s => {
+    return liveStocks.filter(s => {
       if (search && !s.symbol.toLowerCase().includes(search.toLowerCase()) && !s.name.toLowerCase().includes(search.toLowerCase())) return false;
       if (filters.sector !== "all" && s.sector !== filters.sector) return false;
       if (s.pe > filters.peMax) return false;
@@ -125,7 +143,7 @@ export default function StockScreener() {
       if (typeof va === "boolean" || typeof vb === "boolean") return 0;
       return sortDir === "desc" ? (vb as number) - (va as number) : (va as number) - (vb as number);
     });
-  }, [filters, search, sortKey, sortDir]);
+  }, [liveStocks, filters, search, sortKey, sortDir]);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === "desc" ? "asc" : "desc");
@@ -137,7 +155,7 @@ export default function StockScreener() {
     setActivePreset(null);
   };
 
-  const sectors = ["all", ...Array.from(new Set(STOCKS.map(s => s.sector)))];
+  const sectors = ["all", ...Array.from(new Set(liveStocks.map(s => s.sector)))];
 
   const SortIcon = ({ k }: { k: SortKey }) => {
     if (sortKey !== k) return null;
@@ -168,11 +186,12 @@ export default function StockScreener() {
           <h2 className="text-lg font-display font-bold text-ivory-100 flex items-center gap-2">
             <SlidersHorizontal className="w-5 h-5 text-maroon-600" />
             Stock Screener
+            {isLive && <span className="label-tag bg-signal-bull/15 text-signal-bull text-[9px]">● LIVE</span>}
           </h2>
           <p className="text-xs text-ivory-500">Multi-criteria fundamental + technical + smart money filter engine</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs font-mono text-ivory-500">{results.length} of {STOCKS.length} matches</span>
+          <span className="text-xs font-mono text-ivory-500">{results.length} of {liveStocks.length} matches</span>
           <button onClick={() => setShowFilters(f => !f)}
             className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors",
               showFilters ? "bg-maroon-800/40 text-maroon-300" : "bg-bg-hover text-ivory-400 hover:text-ivory-200"

@@ -9,9 +9,10 @@ import {
   BarChart2, Calculator, Gauge, Waves, Flame, ArrowLeftRight,
   Layers2, Scale, Smile, Coins, Landmark, BarChart4, Globe2, FileBarChart,
   UserCheck, Package, ArrowUpCircle, Eye, Receipt, Flag,
-  ChevronDown, ChevronRight, Home,
+  ChevronDown, ChevronRight, Home, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LIVE_SECTION_IDS } from "@/lib/liveData";
 
 const NAV_ITEMS = [
   // ── MARKET DATA ──────────────────────────────────────────────────
@@ -87,9 +88,10 @@ const GROUPS: { id: string; label: string }[] = [
 interface SidebarProps {
   active: string;
   onChange: (id: string) => void;
+  onClose?: () => void;
 }
 
-export default function Sidebar({ active, onChange }: SidebarProps) {
+export default function Sidebar({ active, onChange, onClose }: SidebarProps) {
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -119,25 +121,41 @@ export default function Sidebar({ active, onChange }: SidebarProps) {
       <button
         onClick={() => onChange(item.id)}
         className={cn(
-          "w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-left transition-all text-[11px] font-medium group",
+          "w-full flex items-center gap-3 lg:gap-2.5 px-3 py-3 lg:py-1.5 rounded-lg text-left transition-all text-[13px] lg:text-[11px] font-medium group",
           isActive
             ? "bg-maroon-800/25 border border-maroon-800/50 text-ivory-100 shadow-glow-maroon"
             : "text-ivory-500 hover:text-ivory-200 hover:bg-bg-hover border border-transparent"
         )}
       >
-        <Icon className={cn("w-3.5 h-3.5 flex-shrink-0 transition-colors", isActive ? "text-maroon-400" : "text-ivory-600 group-hover:text-ivory-400")} />
+        <Icon className={cn("w-4 h-4 lg:w-3.5 lg:h-3.5 flex-shrink-0 transition-colors", isActive ? "text-maroon-400" : "text-ivory-600 group-hover:text-ivory-400")} />
         <span className="flex-1 tracking-wide truncate">{item.label}</span>
         {item.badge && (
           <span className={cn("label-tag text-[8px] px-1 py-0.5 rounded flex-shrink-0", badgeClass(item.badge))}>
             {item.badge}
           </span>
         )}
+        <span
+          title={LIVE_SECTION_IDS.has(item.id) ? "Live data" : "Simulated data"}
+          className={cn("text-[8px] flex-shrink-0", LIVE_SECTION_IDS.has(item.id) ? "text-signal-bull" : "text-gold-500")}
+        >★</span>
       </button>
     );
   };
 
   return (
-    <aside className="hidden lg:flex flex-col w-52 bg-bg-secondary border-r border-bg-border flex-shrink-0 h-full">
+    <aside className="flex flex-col w-[280px] lg:w-52 bg-bg-secondary border-r border-bg-border flex-shrink-0 h-full">
+      {/* Mobile header with close button */}
+      {onClose && (
+        <div className="lg:hidden flex items-center justify-between px-4 py-3 border-b border-bg-border">
+          <span className="text-sm font-semibold text-ivory-200 font-display">Navigation</span>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg bg-bg-hover text-ivory-400 hover:text-ivory-100 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      )}
       {/* Search */}
       <div className="px-3 pt-3 pb-2">
         <div className="relative">
@@ -167,8 +185,9 @@ export default function Sidebar({ active, onChange }: SidebarProps) {
           /* Grouped nav */
           GROUPS.map((group) => {
             const items = NAV_ITEMS.filter((i) => i.group === group.id);
-            const isCollapsed = collapsed[group.id] ?? false;
-            const hasActive = items.some((i) => i.id === active);
+            // "home" is in market group but shouldn't auto-expand the group
+            const hasActive = items.some((i) => i.id === active && active !== "home");
+            const isCollapsed = collapsed[group.id] ?? !hasActive;
             return (
               <div key={group.id}>
                 <button

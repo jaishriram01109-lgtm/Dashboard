@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { PieChart as PieIcon, BarChart2, Activity, Grid } from "lucide-react";
 import { sectorData, stockData } from "@/lib/mockData";
 import { cn, fmt, fmtPct, colorFromChange, scoreColor } from "@/lib/utils";
+import { useAngelQuotes } from "@/hooks/useAngelData";
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line,
   BarChart, Bar, XAxis, YAxis, Cell, Tooltip, ReferenceLine,
@@ -182,11 +183,15 @@ function SectorAllocationPie() {
 }
 
 // Market Breadth
-function MarketBreadth() {
+function MarketBreadth({ adv, dec, isLive }: { adv: number; dec: number; isLive: boolean }) {
+  const adRatio = dec > 0 ? (adv / dec).toFixed(2) : "—";
+  const total = adv + dec;
+  const advPct = total > 0 ? ((adv / total) * 100).toFixed(1) : "68.4";
   return (
     <div className="card-glass rounded-xl p-4">
-      <div className="text-xs font-semibold text-ivory-400 uppercase tracking-wider mb-3">
+      <div className="text-xs font-semibold text-ivory-400 uppercase tracking-wider mb-3 flex items-center gap-2">
         Market Breadth Indicator
+        {isLive && <span className="label-tag bg-signal-bull/15 text-signal-bull text-[9px]">● LIVE</span>}
       </div>
       <div className="h-48">
         <ResponsiveContainer width="100%" height="100%">
@@ -203,9 +208,9 @@ function MarketBreadth() {
       </div>
       <div className="grid grid-cols-3 gap-3 mt-2 text-center text-xs">
         {[
-          { label: "% Above 50D EMA", value: "68.4%", color: "text-signal-bull" },
-          { label: "% Above 200D EMA", value: "72.1%", color: "text-signal-bull" },
-          { label: "A/D Ratio", value: "1.82", color: "text-signal-bull" },
+          { label: "Advancing", value: isLive ? String(adv) : "34", color: "text-signal-bull" },
+          { label: "Declining", value: isLive ? String(dec) : "16", color: "text-signal-bear" },
+          { label: "A/D Ratio", value: isLive ? adRatio : "1.82", color: adv >= dec ? "text-signal-bull" : "text-signal-bear" },
         ].map(s => (
           <div key={s.label}>
             <div className={cn("font-mono font-bold", s.color)}>{s.value}</div>
@@ -351,12 +356,22 @@ function MomentumScanner() {
 }
 
 export default function Visualizations() {
+  const { quotes, isLive } = useAngelQuotes();
+
+  const { adv, dec } = useMemo(() => {
+    if (quotes.size === 0) return { adv: 34, dec: 16 };
+    let adv = 0, dec = 0;
+    quotes.forEach(q => { if (q.changePct > 0) adv++; else if (q.changePct < 0) dec++; });
+    return { adv, dec };
+  }, [quotes]);
+
   return (
     <div className="space-y-5 animate-fade-in">
       <div>
         <h2 className="text-lg font-display font-bold text-ivory-100 flex items-center gap-2">
           <PieIcon className="w-5 h-5 text-maroon-600" />
           Market Visualizations
+          {isLive && <span className="label-tag bg-signal-bull/15 text-signal-bull text-[9px]">● LIVE</span>}
         </h2>
         <p className="text-xs text-ivory-500">Multi-dimensional market analysis charts and dashboards</p>
       </div>
@@ -365,7 +380,7 @@ export default function Visualizations() {
         <div className="md:col-span-2"><NiftyChart /></div>
         <SectorAllocationPie />
         <RelativeStrengthMatrix />
-        <MarketBreadth />
+        <MarketBreadth adv={adv} dec={dec} isLive={isLive} />
         <VolumeProfileChart />
         <div className="md:col-span-2"><FIIDIIComparison /></div>
       </div>

@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { TrendingUp, TrendingDown, Zap, Target } from "lucide-react";
+import { useAngelQuotes } from "@/hooks/useAngelData";
+import { dayRSI } from "@/lib/angelData";
 import {
   BarChart, LineChart,
   Bar, Line,
@@ -51,18 +53,41 @@ const signalBg: Record<BreakoutStock["signal"], string> = {
 
 export default function HighLowScanner() {
   const [filter, setFilter] = useState<"ALL" | "NEW_HIGH" | "NEAR_HIGH" | "NEAR_LOW" | "NEW_LOW">("ALL");
+  const { quotes, isLive } = useAngelQuotes();
 
-  const filtered = filter === "ALL" ? STOCKS : STOCKS.filter((s) => s.type === filter);
-  const newHighs = STOCKS.filter((s) => s.type === "NEW_HIGH").length;
-  const nearHighs = STOCKS.filter((s) => s.type === "NEAR_HIGH").length;
-  const nearLows = STOCKS.filter((s) => s.type === "NEAR_LOW").length;
-  const newLows = STOCKS.filter((s) => s.type === "NEW_LOW").length;
+  const liveStocks = useMemo<BreakoutStock[]>(() =>
+    STOCKS.map(stock => {
+      const q = quotes.get(stock.symbol);
+      if (!q) return stock;
+      const price = q.ltp;
+      const fromHigh = ((price - stock.high52W) / stock.high52W) * 100;
+      const fromLow = ((price - stock.low52W) / stock.low52W) * 100;
+      const type: BreakoutStock["type"] =
+        fromHigh >= -0.5 ? "NEW_HIGH" :
+        fromHigh >= -2   ? "NEAR_HIGH" :
+        fromLow  <= 0.5  ? "NEW_LOW"   :
+        fromLow  <= 5    ? "NEAR_LOW"  : stock.type;
+      const signal: BreakoutStock["signal"] =
+        type === "NEW_HIGH"  ? "BREAKOUT"   :
+        type === "NEAR_HIGH" ? "WATCH_HIGH" :
+        type === "NEW_LOW"   ? "BREAKDOWN"  : "WATCH_LOW";
+      return { ...stock, price, fromHigh, fromLow, type, signal, volume: q.volume, rsi: dayRSI(q) };
+    }), [quotes]);
+
+  const filtered = filter === "ALL" ? liveStocks : liveStocks.filter((s) => s.type === filter);
+  const newHighs = liveStocks.filter((s) => s.type === "NEW_HIGH").length;
+  const nearHighs = liveStocks.filter((s) => s.type === "NEAR_HIGH").length;
+  const nearLows = liveStocks.filter((s) => s.type === "NEAR_LOW").length;
+  const newLows = liveStocks.filter((s) => s.type === "NEW_LOW").length;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold text-ivory-100 tracking-wide">52W High / Low Scanner</h2>
+          <h2 className="text-lg font-bold text-ivory-100 tracking-wide flex items-center gap-2">
+            52W High / Low Scanner
+            {isLive && <span className="label-tag bg-signal-bull/15 text-signal-bull text-[9px]">● LIVE</span>}
+          </h2>
           <p className="text-xs text-ivory-500 mt-0.5">Breakout quality scoring · Volume confirmation · Follow-through analysis</p>
         </div>
       </div>

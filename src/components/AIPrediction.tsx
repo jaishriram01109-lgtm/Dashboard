@@ -1,9 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Zap, TrendingUp, TrendingDown, AlertTriangle, RotateCcw, ArrowUpRight, Target } from "lucide-react";
 import { aiPredictions, marketRegime } from "@/lib/mockData";
 import type { AIPrediction } from "@/lib/types";
 import { cn, scoreColor, scoreBg, colorFromChange } from "@/lib/utils";
+import { useAngelQuotes } from "@/hooks/useAngelData";
 import {
   ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar,
   BarChart, Bar, XAxis, YAxis, Cell, Tooltip, LineChart, Line,
@@ -18,7 +19,7 @@ const typeConfig: Record<string, { icon: React.ReactNode; color: string; bg: str
   weak_sector: { icon: <TrendingDown className="w-4 h-4" />, color: "text-signal-distribute", bg: "bg-signal-distribute/15", label: "WEAK SECTOR" },
 };
 
-function PredictionCard({ pred }: { pred: AIPrediction }) {
+function PredictionCard({ pred, ltp }: { pred: AIPrediction; ltp?: number }) {
   const cfg = typeConfig[pred.type] ?? typeConfig.sector_rally;
   const isPositive = pred.expectedMove >= 0;
 
@@ -32,7 +33,14 @@ function PredictionCard({ pred }: { pred: AIPrediction }) {
           <div className="flex items-start justify-between gap-2">
             <div>
               <span className={cn("label-tag text-[10px]", cfg.bg, cfg.color, "border border-current/30")}>{cfg.label}</span>
-              <div className="font-display font-bold text-sm text-ivory-100 mt-1">{pred.target}</div>
+              <div className="font-display font-bold text-sm text-ivory-100 mt-1 flex items-center gap-2">
+                {pred.target}
+                {ltp && (
+                  <span className="text-[10px] font-mono text-gold-400 font-normal bg-gold-500/10 px-1.5 py-0.5 rounded">
+                    LTP ₹{ltp.toLocaleString("en-IN", { maximumFractionDigits: 1 })}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="text-right flex-shrink-0">
               <div className={cn("text-xl font-mono font-bold", isPositive ? "text-signal-bull" : "text-signal-bear")}>
@@ -112,6 +120,7 @@ function genPatternReturn(months: number, base: number) {
 
 export default function AIPredictionEngine() {
   const [activeFilter, setActiveFilter] = useState<string>("all");
+  const { quotes } = useAngelQuotes();
 
   const filtered = activeFilter === "all"
     ? aiPredictions
@@ -242,7 +251,7 @@ export default function AIPredictionEngine() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {filtered.map(pred => (
-          <PredictionCard key={pred.id} pred={pred} />
+          <PredictionCard key={pred.id} pred={pred} ltp={quotes.get(pred.target)?.ltp} />
         ))}
       </div>
 

@@ -1,80 +1,97 @@
 "use client";
-import { useState, useEffect } from "react";
-import { Activity, Search, RefreshCw, Zap, TrendingUp } from "lucide-react";
-import { stockData, generateLivePrice } from "@/lib/mockData";
+import { useState, useEffect, useMemo } from "react";
+import { Activity, RefreshCw, Zap } from "lucide-react";
 import { cn, fmt, fmtPct, colorFromChange, scoreColor, scoreBg, signalColor, signalLabel } from "@/lib/utils";
+import { useAngelQuotes } from "@/hooks/useAngelData";
+import { calcAIScore, calcSmartMoneyScore, calcMomentumScore, dayRSI, signalFromScore, getSector } from "@/lib/angelData";
+import { STOCK_INSTRUMENTS } from "@/lib/angelOne";
 
 const SCAN_TYPES = [
-  { id: "breakout", label: "Breakout Ready", desc: "Stocks near key breakout zones with volume support" },
-  { id: "accumulation", label: "Accumulation", desc: "Smart money quietly building positions" },
-  { id: "momentum", label: "Momentum Surge", desc: "Volume + price momentum acceleration" },
-  { id: "hidden_gem", label: "Hidden Gems", desc: "Undercover institutional activity before public breakout" },
-  { id: "reversal", label: "Reversal Setup", desc: "Oversold stocks with smart money reversal signals" },
+  { id: "breakout",     label: "Breakout Ready",   desc: "Strong price + high volume surge" },
+  { id: "accumulation", label: "Accumulation",      desc: "Smart money building positions quietly" },
+  { id: "momentum",     label: "Momentum Surge",    desc: "Top movers by change% today" },
+  { id: "hidden_gem",   label: "Hidden Gems",       desc: "Strong positioning, less known stocks" },
+  { id: "reversal",     label: "Reversal Setup",    desc: "Negative day, possible bounce candidates" },
 ];
 
 type ScanResult = {
-  symbol: string;
-  name: string;
-  sector: string;
-  price: number;
-  changePct: number;
-  aiScore: number;
-  smartMoneyScore: number;
-  volume: number;
-  avgVolume: number;
-  rsi: number;
-  deliveryPct: number;
-  signal: string;
-  reason: string;
-  conviction: number;
+  symbol: string; name: string; sector: string;
+  price: number; changePct: number;
+  aiScore: number; smartMoneyScore: number;
+  volume: number; rsi: number;
+  signal: string; reason: string; conviction: number;
 };
-
-function generateScanResults(type: string): ScanResult[] {
-  return stockData
-    .filter(s => {
-      if (type === "breakout") return s.technicals.momentumStrength >= 80 && s.changePct > 0;
-      if (type === "accumulation") return s.accumulating && s.smartMoneyScore >= 70;
-      if (type === "momentum") return s.technicals.volume > s.technicals.avgVolume20D * 1.8;
-      if (type === "hidden_gem") return s.smartMoneyScore >= 78 && s.institutionalScore >= 70;
-      if (type === "reversal") return s.technicals.rsi < 45 && s.signal !== "sell";
-      return true;
-    })
-    .map(s => ({
-      symbol: s.symbol,
-      name: s.name,
-      sector: s.sector,
-      price: s.price,
-      changePct: s.changePct,
-      aiScore: s.aiScore,
-      smartMoneyScore: s.smartMoneyScore,
-      volume: s.technicals.volume,
-      avgVolume: s.technicals.avgVolume20D,
-      rsi: s.technicals.rsi,
-      deliveryPct: s.technicals.deliveryPct,
-      signal: s.signal,
-      reason: s.aiAlert ?? "AI pattern detected",
-      conviction: s.aiScore,
-    }));
-}
 
 export default function MomentumScanner() {
   const [activeScan, setActiveScan] = useState("breakout");
-  const [results, setResults] = useState<ScanResult[]>([]);
   const [scanning, setScanning] = useState(false);
-  const [lastScan, setLastScan] = useState<string>("");
+  const [lastScan, setLastScan] = useState("");
+  const { quotes, isLive, loading } = useAngelQuotes(60_000);
 
-  const runScan = () => {
-    setScanning(true);
-    setTimeout(() => {
-      setResults(generateScanResults(activeScan));
-      setLastScan(new Date().toLocaleTimeString("en-IN"));
-      setScanning(false);
-    }, 800);
-  };
+  // Build scan results from real quotes
+  const results: ScanResult[] = useMemo(() => {
+    if (quotes.size === 0) return [];
 
+    const stockEntries = Object.entries(STOCK_INSTRUMENTS);
+    const all = stockEntries
+      .map(([key, inst]) => {
+        const q = quotes.get(inst.token) ?? quotes.get(key);
+        if (!q) return null;
+        const aiScore = calcAIScore(q);
+        const smScore = calcSmartMoneyScore(q);
+        const rsi = dayRSI(q);
+        return {
+          symbol: key,
+          name: inst.name,
+          sector: getSector(key),
+          price: q.ltp,
+          changePct: q.changePct,
+          aiScore,
+          smartMoneyScore: smScore,
+          volume: q.volume,
+          rsi,
+          signal: signalFromScore(aiScore),
+          conviction: aiScore,
+          q,
+        };
+      })
+      .filter(Boolean) as (ScanResult & { q: any })[];
+
+    let filtered: typeof all;
+    if (activeScan === "breakout") {
+      filtered = all.filter(s => s.changePct > 1.5 && s.rsi > 60);
+    } else if (activeScan === "accumulation") {
+      filtered = all.filter(s => s.changePct > 0 && s.changePct < 2 && s.volume > 200_000);
+    } else if (activeScan === "momentum") {
+      filtered = [...all].sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct)).slice(0, 10);
+    } else if (activeScan === "hidden_gem") {
+      filtered = all.filter(s => s.smartMoneyScore >= 60 && s.aiScore >= 65 && s.changePct > 0);
+    } else {
+      // reversal — negative change candidates
+      filtered = all.filter(s => s.changePct < -0.5 && s.rsi < 45);
+    }
+
+    return filtered
+      .sort((a, b) => b.conviction - a.conviction)
+      .map(s => ({
+        ...s,
+        reason: activeScan === "breakout" ? `Strong momentum +${s.changePct.toFixed(2)}%, RSI ${s.rsi}`
+          : activeScan === "accumulation" ? `Steady buying, vol ${(s.volume / 1000).toFixed(0)}K`
+          : activeScan === "momentum" ? `Top mover ${s.changePct >= 0 ? "+" : ""}${s.changePct.toFixed(2)}%`
+          : activeScan === "hidden_gem" ? `AI ${s.aiScore} + SM ${s.smartMoneyScore}`
+          : `Oversold RSI ${s.rsi}, watch for bounce`,
+      }));
+  }, [quotes, activeScan]);
+
+  // Trigger scanning animation on scan type change
   useEffect(() => {
-    runScan();
-  }, [activeScan]);
+    setScanning(true);
+    const t = setTimeout(() => {
+      setScanning(false);
+      setLastScan(new Date().toLocaleTimeString("en-IN"));
+    }, 600);
+    return () => clearTimeout(t);
+  }, [activeScan, quotes]);
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -84,49 +101,47 @@ export default function MomentumScanner() {
             <Activity className="w-5 h-5 text-maroon-600" />
             Momentum Scanner
           </h2>
-          <p className="text-xs text-ivory-500">AI-powered stock scanner with institutional footprint detection</p>
+          <p className="text-xs text-ivory-500 flex items-center gap-1">
+            {isLive
+              ? <><span className="w-1.5 h-1.5 rounded-full bg-signal-bull live-dot inline-block" /> Live scan — Angel One SmartAPI</>
+              : "Connect Angel One for real-time scanning"
+            }
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          {lastScan && <span className="text-xs text-ivory-600 font-mono">Last scan: {lastScan}</span>}
-          <button
-            onClick={runScan}
-            disabled={scanning}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-maroon-800/30 border border-maroon-800/50 text-xs text-maroon-300 hover:bg-maroon-800/50 transition-colors"
-          >
-            <RefreshCw className={cn("w-3.5 h-3.5", scanning && "animate-spin")} />
-            {scanning ? "Scanning..." : "Re-scan"}
-          </button>
+          {lastScan && <span className="text-xs text-ivory-600 font-mono">Last: {lastScan}</span>}
+          <span className={cn("text-[10px] px-2 py-0.5 rounded font-mono font-bold",
+            isLive ? "bg-signal-bull/10 text-signal-bull" : "bg-gold-500/10 text-gold-500"
+          )}>
+            {isLive ? "● LIVE" : "★ DEMO"}
+          </span>
         </div>
       </div>
 
       {/* Scan type selector */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
         {SCAN_TYPES.map(scan => (
-          <button
-            key={scan.id}
-            onClick={() => setActiveScan(scan.id)}
-            className={cn(
-              "rounded-xl p-3 text-left transition-all border",
+          <button key={scan.id} onClick={() => setActiveScan(scan.id)}
+            className={cn("rounded-xl p-3 text-left transition-all border",
               activeScan === scan.id
                 ? "bg-maroon-800/25 border-maroon-700/50 glow-border-maroon"
                 : "card-glass border-bg-border hover:border-bg-border"
-            )}
-          >
+            )}>
             <div className="text-xs font-semibold text-ivory-100">{scan.label}</div>
             <div className="text-[10px] text-ivory-600 mt-0.5 leading-tight">{scan.desc}</div>
           </button>
         ))}
       </div>
 
-      {/* Scanner stats */}
+      {/* Stats */}
       <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
         {[
-          { label: "Stocks Scanned", value: "2,847", color: "text-ivory-100" },
+          { label: "Stocks Scanned", value: isLive ? Object.keys(STOCK_INSTRUMENTS).length : "—", color: "text-ivory-100" },
           { label: "Matches Found", value: results.length, color: "text-signal-bull" },
-          { label: "High Conviction", value: results.filter(r => r.conviction >= 80).length, color: "text-gold-500" },
-          { label: "Avg AI Score", value: results.length ? Math.round(results.reduce((s, r) => s + r.aiScore, 0) / results.length) : 0, color: "text-signal-accumulate" },
-          { label: "Avg SM Score", value: results.length ? Math.round(results.reduce((s, r) => s + r.smartMoneyScore, 0) / results.length) : 0, color: "text-maroon-400" },
-          { label: "Scan Time", value: "0.8s", color: "text-ivory-400" },
+          { label: "High Conviction", value: results.filter(r => r.conviction >= 75).length, color: "text-gold-500" },
+          { label: "Avg AI Score", value: results.length ? Math.round(results.reduce((s, r) => s + r.aiScore, 0) / results.length) : "—", color: "text-signal-accumulate" },
+          { label: "Avg SM Score", value: results.length ? Math.round(results.reduce((s, r) => s + r.smartMoneyScore, 0) / results.length) : "—", color: "text-maroon-400" },
+          { label: "Data Source", value: isLive ? "LIVE" : "DEMO", color: isLive ? "text-signal-bull" : "text-gold-500" },
         ].map(s => (
           <div key={s.label} className="card-glass rounded-lg p-2 text-center">
             <div className={cn("text-lg font-mono font-bold", s.color)}>{s.value}</div>
@@ -135,7 +150,7 @@ export default function MomentumScanner() {
         ))}
       </div>
 
-      {/* Results table */}
+      {/* Results */}
       <div className="card-glass rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-bg-border flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -154,10 +169,10 @@ export default function MomentumScanner() {
 
         {results.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px]">
+            <table className="w-full min-w-[750px]">
               <thead>
                 <tr className="border-b border-bg-border">
-                  {["#", "Symbol", "Sector", "Price", "Change", "AI Score", "SM Score", "Volume×", "RSI", "Delivery", "Signal", "Reason"].map(h => (
+                  {["#", "Symbol", "Sector", "Price", "Change", "AI Score", "SM Score", "Volume", "RSI", "Signal", "AI Reason"].map(h => (
                     <th key={h} className="px-3 py-2 text-left text-[10px] text-ivory-600 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -174,8 +189,8 @@ export default function MomentumScanner() {
                       <span className="label-tag bg-maroon-800/15 text-maroon-400 text-[10px]">{r.sector}</span>
                     </td>
                     <td className="px-3 py-2.5 font-mono text-xs text-ivory-200">₹{fmt(r.price)}</td>
-                    <td className={cn("px-3 py-2.5 font-mono text-xs", colorFromChange(r.changePct))}>
-                      {fmtPct(r.changePct)}
+                    <td className={cn("px-3 py-2.5 font-mono text-xs font-bold", colorFromChange(r.changePct))}>
+                      {r.changePct >= 0 ? "+" : ""}{r.changePct.toFixed(2)}%
                     </td>
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-1.5">
@@ -188,17 +203,13 @@ export default function MomentumScanner() {
                     <td className="px-3 py-2.5">
                       <span className={cn("text-xs font-mono font-bold", scoreColor(r.smartMoneyScore))}>{r.smartMoneyScore}</span>
                     </td>
-                    <td className={cn("px-3 py-2.5 font-mono text-xs", r.volume > r.avgVolume * 2 ? "text-signal-bull" : "text-ivory-400")}>
-                      {(r.volume / r.avgVolume).toFixed(1)}x
+                    <td className={cn("px-3 py-2.5 font-mono text-xs", r.volume > 1_000_000 ? "text-signal-bull" : "text-ivory-400")}>
+                      {r.volume > 1_000_000 ? `${(r.volume / 1_000_000).toFixed(1)}M` : `${(r.volume / 1000).toFixed(0)}K`}
                     </td>
                     <td className="px-3 py-2.5">
-                      <span className={cn(
-                        "font-mono text-xs",
+                      <span className={cn("font-mono text-xs",
                         r.rsi >= 70 ? "text-signal-bear" : r.rsi >= 55 ? "text-signal-bull" : "text-yellow-400"
-                      )}>{r.rsi.toFixed(1)}</span>
-                    </td>
-                    <td className={cn("px-3 py-2.5 font-mono text-xs", r.deliveryPct >= 65 ? "text-signal-bull" : "text-ivory-400")}>
-                      {r.deliveryPct}%
+                      )}>{r.rsi}</span>
                     </td>
                     <td className="px-3 py-2.5">
                       <span className={cn("label-tag border text-[10px]", signalColor(r.signal as any))}>
@@ -215,7 +226,7 @@ export default function MomentumScanner() {
           </div>
         ) : (
           <div className="h-32 flex items-center justify-center text-ivory-600 text-sm">
-            {scanning ? "Scanning markets..." : "No results found"}
+            {loading || scanning ? "Scanning markets..." : isLive ? "No matches for this scan" : "Connect Angel One for live scanning"}
           </div>
         )}
       </div>

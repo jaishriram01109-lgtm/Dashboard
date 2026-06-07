@@ -1,12 +1,13 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { BarChart3, ArrowUp, ArrowDown, Minus, TrendingUp, Filter } from "lucide-react";
 import { sectorData, SECTOR_HEATMAP_COLORS } from "@/lib/mockData";
 import type { SectorData, TimeFrame } from "@/lib/types";
+import { fetchSectorData, SECTOR_YF, type YFQuote } from "@/lib/yahooData";
 import { cn, fmt, fmtPct, colorFromChange, signalColor, signalLabel, scoreColor, scoreBg, phaseColor } from "@/lib/utils";
 import {
   RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer,
-  Tooltip, BarChart, Bar, XAxis, YAxis, Cell, ScatterChart, Scatter, ZAxis,
+  Tooltip, BarChart, Bar, XAxis, YAxis, Cell, ScatterChart, Scatter, ZAxis, CartesianGrid,
 } from "recharts";
 
 const TIMEFRAMES: TimeFrame[] = ["1D", "1W", "1M", "3M", "1Y"];
@@ -200,12 +201,12 @@ function SectorRow({ sector, rank }: { sector: SectorData; rank: number }) {
 }
 
 // Heatmap component
-function SectorHeatmap() {
+function SectorHeatmap({ data }: { data: SectorData[] }) {
   return (
     <div>
       <div className="text-xs font-semibold text-ivory-400 uppercase tracking-wider mb-3">Sector Heatmap (1M Returns)</div>
       <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5">
-        {sectorData.map(sector => {
+        {data.map(sector => {
           const pct = sector.monthlyChange;
           const intensity = Math.min(Math.abs(pct) / 20, 1);
           const isPositive = pct >= 0;
@@ -231,8 +232,8 @@ function SectorHeatmap() {
 }
 
 // Scatter: RS vs Momentum
-function RSvsMomentum() {
-  const data = sectorData.map(s => ({
+function RSvsMomentum({ data: sectors }: { data: SectorData[] }) {
+  const data = sectors.map(s => ({
     x: s.relativeStrength,
     y: s.momentumScore,
     z: s.volumeExpansion * 30,
@@ -255,7 +256,7 @@ function RSvsMomentum() {
       <div className="h-52">
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={{ top: 5, right: 20, bottom: 20, left: 5 }}>
-            <PolarGrid stroke="#1E1E24" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#2a1a1a" />
             <XAxis dataKey="x" name="RS" type="number" domain={[20, 100]}
               label={{ value: "Relative Strength →", position: "insideBottom", offset: -10, fill: "#A09278", fontSize: 10 }}
               tick={{ fill: "#A09278", fontSize: 10 }} />
@@ -296,8 +297,8 @@ function RSvsMomentum() {
 }
 
 // Rotation strength bar chart
-function RotationChart() {
-  const sorted = [...sectorData].sort((a, b) => b.rotationStrength - a.rotationStrength).slice(0, 8);
+function RotationChart({ data }: { data: SectorData[] }) {
+  const sorted = [...data].sort((a, b) => b.rotationStrength - a.rotationStrength).slice(0, 8);
   return (
     <div className="card-glass rounded-xl p-4">
       <div className="text-xs font-semibold text-ivory-400 uppercase tracking-wider mb-3">
@@ -340,10 +341,32 @@ export default function SectorRotation() {
   const [timeframe, setTimeframe] = useState<TimeFrame>("1M");
   const [filterPhase, setFilterPhase] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"rank" | "rs" | "momentum" | "breakout">("rank");
+  const [live, setLive] = useState<Map<string, YFQuote>>(new Map());
+  const [isLive, setIsLive] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      const m = await fetchSectorData();
+      if (m.size) { setLive(m); setIsLive(true); }
+    };
+    load();
+    const id = setInterval(load, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const liveSectorData: SectorData[] = useMemo(() => {
+    if (!isLive || live.size === 0) return sectorData;
+    return sectorData.map(s => {
+      const yfSym = SECTOR_YF[s.index];
+      const q = yfSym ? live.get(yfSym) : undefined;
+      if (!q) return s;
+      return { ...s, price: q.price, change: q.change, changePct: q.changePct };
+    });
+  }, [live, isLive]);
 
   const phases = ["all", "markup", "accumulation", "distribution", "markdown"];
 
-  const sorted = [...sectorData]
+  const sorted = [...liveSectorData]
     .filter(s => filterPhase === "all" || s.phase === filterPhase)
     .sort((a, b) => {
       if (sortBy === "rank") return a.rank - b.rank;
@@ -361,7 +384,9 @@ export default function SectorRotation() {
             <BarChart3 className="w-5 h-5 text-maroon-600" />
             Sector Rotation Engine
           </h2>
-          <p className="text-xs text-ivory-500">25 NSE sectors • Smart money flow • Institutional tracking</p>
+          <p className="text-xs text-ivory-500 flex items-center gap-1">
+            {isLive ? <><span className="w-1.5 h-1.5 rounded-full bg-signal-bull inline-block animate-pulse" /> Live prices — Yahoo Finance · Scores simulated</> : "NSE sectors • Smart money flow • Institutional tracking"}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {TIMEFRAMES.map(tf => (
@@ -382,10 +407,10 @@ export default function SectorRotation() {
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: "Leading Sectors", value: sectorData.filter(s => s.phase === "markup").length, color: "text-signal-bull", sub: "In markup phase" },
-          { label: "Accumulating", value: sectorData.filter(s => s.phase === "accumulation").length, color: "text-signal-accumulate", sub: "Smart money building" },
-          { label: "Distributing", value: sectorData.filter(s => s.phase === "distribution").length, color: "text-signal-distribute", sub: "Caution advised" },
-          { label: "Declining", value: sectorData.filter(s => s.phase === "markdown").length, color: "text-signal-bear", sub: "Avoid fresh longs" },
+          { label: "Leading Sectors", value: liveSectorData.filter(s => s.phase === "markup").length, color: "text-signal-bull", sub: "In markup phase" },
+          { label: "Accumulating", value: liveSectorData.filter(s => s.phase === "accumulation").length, color: "text-signal-accumulate", sub: "Smart money building" },
+          { label: "Distributing", value: liveSectorData.filter(s => s.phase === "distribution").length, color: "text-signal-distribute", sub: "Caution advised" },
+          { label: "Declining", value: liveSectorData.filter(s => s.phase === "markdown").length, color: "text-signal-bear", sub: "Avoid fresh longs" },
         ].map(c => (
           <div key={c.label} className="card-glass rounded-xl p-3 text-center">
             <div className={cn("text-3xl font-mono font-bold", c.color)}>{c.value}</div>
@@ -397,13 +422,13 @@ export default function SectorRotation() {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <RSvsMomentum />
-        <RotationChart />
+        <RSvsMomentum data={liveSectorData} />
+        <RotationChart data={liveSectorData} />
       </div>
 
       {/* Heatmap */}
       <div className="card-glass rounded-xl p-4">
-        <SectorHeatmap />
+        <SectorHeatmap data={liveSectorData} />
       </div>
 
       {/* Filter + Table */}

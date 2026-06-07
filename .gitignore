@@ -3,6 +3,10 @@
 out/
 build/
 node_modules/
+
+# Deployment artifacts
+hostinger-deploy.zip
+*.zip
 npm-debug.log*
 .npm
 

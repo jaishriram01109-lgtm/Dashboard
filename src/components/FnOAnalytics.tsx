@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Activity, TrendingUp, TrendingDown, BarChart3, RefreshCw } from "lucide-react";
+import { useAngelQuotes } from "@/hooks/useAngelData";
 import { cn } from "@/lib/utils";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -106,6 +107,25 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 export default function FnOAnalytics() {
   const [tab, setTab] = useState<FnOTab>("futures");
   const [signalFilter, setSignalFilter] = useState<"all" | Signal>("all");
+  const { quotes, isLive } = useAngelQuotes();
+
+  // Overlay real spot prices and derive signals from live data
+  const liveFutures = useMemo<FuturesRow[]>(() => {
+    return FUTURES.map(row => {
+      const q = quotes.get(row.symbol);
+      if (!q) return row;
+      const spot = q.ltp;
+      const basisPct = +((row.basisPct) * (spot / row.spot)).toFixed(2);
+      const basis = Math.round(spot * basisPct / 100);
+      const ltp = spot + basis;
+      const signal: Signal =
+        q.changePct > 0.4 && q.volume > 500_000 ? "long_buildup" :
+        q.changePct < -0.4 && q.volume > 500_000 ? "short_buildup" :
+        q.changePct < 0 ? "long_unwinding" : "short_covering";
+      const oiChange = Math.round(row.oiChange * (1 + q.changePct / 50));
+      return { ...row, spot, ltp, basis, basisPct, signal, oiChange, oiChangePct: +((oiChange / row.oi) * 100).toFixed(1) };
+    });
+  }, [quotes]);
 
   const tabs: { id: FnOTab; label: string }[] = [
     { id: "futures", label: "Futures Chain" },
@@ -115,13 +135,13 @@ export default function FnOAnalytics() {
   ];
 
   const currentPCR = PCR_HISTORY[PCR_HISTORY.length - 1].pcr;
-  const filteredFutures = FUTURES.filter(r => signalFilter === "all" || r.signal === signalFilter);
+  const filteredFutures = liveFutures.filter(r => signalFilter === "all" || r.signal === signalFilter);
 
   const signalCounts = {
-    long_buildup: FUTURES.filter(f => f.signal === "long_buildup").length,
-    short_buildup: FUTURES.filter(f => f.signal === "short_buildup").length,
-    long_unwinding: FUTURES.filter(f => f.signal === "long_unwinding").length,
-    short_covering: FUTURES.filter(f => f.signal === "short_covering").length,
+    long_buildup:   liveFutures.filter(f => f.signal === "long_buildup").length,
+    short_buildup:  liveFutures.filter(f => f.signal === "short_buildup").length,
+    long_unwinding: liveFutures.filter(f => f.signal === "long_unwinding").length,
+    short_covering: liveFutures.filter(f => f.signal === "short_covering").length,
   };
 
   return (
@@ -133,7 +153,10 @@ export default function FnOAnalytics() {
             <Activity className="w-5 h-5 text-maroon-600" />
             F&O Analytics
           </h2>
-          <p className="text-xs text-ivory-500">Futures OI buildup, PCR trend, rollover analysis — NSE derivatives</p>
+          <p className="text-xs text-ivory-500">
+            Futures OI buildup, PCR trend, rollover analysis — NSE derivatives
+            {isLive && <span className="ml-2 text-signal-bull font-semibold">● Live prices — Angel One</span>}
+          </p>
         </div>
         <div className="flex items-center gap-2 text-xs font-mono">
           <span className="text-ivory-500">Nifty PCR:</span>
