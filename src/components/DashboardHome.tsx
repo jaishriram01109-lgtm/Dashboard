@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { TrendingUp, TrendingDown, Bell, Activity, Brain, BarChart3, Shield, Target, Zap, Globe, PieChart, Search, BookOpen, Calculator, Flag, Eye } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip,
@@ -9,6 +9,8 @@ import {
   fetchHomeData,
   type IndexQuote, type ChartPoint,
 } from "@/lib/liveData";
+import { fetchBondYields, BOND_YF } from "@/lib/yahooData";
+import { useAngelQuotes } from "@/hooks/useAngelData";
 
 // Fallback mock data
 const MOCK_INDICES: IndexQuote[] = [
@@ -79,10 +81,25 @@ export default function DashboardHome({ onNavigate }: Props) {
   const [indices, setIndices]       = useState<IndexQuote[]>(MOCK_INDICES);
   const [chartData, setChartData]   = useState<ChartPoint[]>(MOCK_CHART);
   const [usdInr, setUsdInr]         = useState<number | null>(null);
+  const [us10y, setUs10y]           = useState<number | null>(null);
   const [isLive, setIsLive]         = useState(false);
   const [loading, setLoading]       = useState(true);
   const [dataSource, setDataSource] = useState<"angel" | "yahoo" | "simulated">("simulated");
   const [marketOpen, setMarketOpen] = useState(false);
+  const { quotes } = useAngelQuotes();
+
+  // Compute real market breadth from Angel One quotes
+  const breadth = useMemo(() => {
+    if (quotes.size === 0) return null;
+    let adv = 0, dec = 0;
+    quotes.forEach(q => {
+      if (typeof q.token === "string" && q.token.length <= 6) {
+        if (q.changePct > 0) adv++;
+        else if (q.changePct < 0) dec++;
+      }
+    });
+    return adv + dec > 5 ? { adv, dec } : null;
+  }, [quotes]);
 
   useEffect(() => {
     const checkMarket = () => {
@@ -96,7 +113,13 @@ export default function DashboardHome({ onNavigate }: Props) {
     const load = async () => {
       setLoading(true);
       try {
-        const { indices: idxData, isReal, usdInr: usd, chartData: chartPts } = await fetchHomeData();
+        const [homeResult, bondMap] = await Promise.all([
+          fetchHomeData(),
+          fetchBondYields(),
+        ]);
+        const { indices: idxData, isReal, usdInr: usd, chartData: chartPts } = homeResult;
+        const us10yQ = bondMap.get(BOND_YF["US 10Y"]);
+        if (us10yQ) setUs10y(us10yQ.price);
         if (idxData.length > 0) setIndices(idxData);
         if (isReal) {
           setIsLive(true);
@@ -197,14 +220,14 @@ export default function DashboardHome({ onNavigate }: Props) {
 
         <div className="grid grid-cols-2 gap-2 content-start">
           {[
-            { label: "FII Net Today",   value: "+₹1,234 Cr",                                positive: true  },
-            { label: "Active Alerts",   value: "7",                                          positive: false },
-            { label: "Trade Setups",    value: "6 Active",                                   positive: true  },
-            { label: "Nifty PCR",       value: "0.92",                                       positive: true  },
-            { label: "Market Breadth",  value: "32:14",                                      positive: true  },
-            { label: "IV Percentile",   value: "28th (Low)",                                 positive: true  },
-            { label: "US 10Y Yield",    value: "4.32%",                                      positive: false },
-            { label: "USD/INR",         value: usdInr ? usdInr.toFixed(2) : "83.42",        positive: false },
+            { label: "FII Net Today",  value: "+₹1,234 Cr",                                           positive: true  },
+            { label: "Active Alerts",  value: "7",                                                    positive: false },
+            { label: "Trade Setups",   value: "6 Active",                                             positive: true  },
+            { label: "Nifty PCR",      value: "0.92",                                                 positive: true  },
+            { label: "Market Breadth", value: breadth ? `${breadth.adv}:${breadth.dec}` : "32:14",   positive: breadth ? breadth.adv > breadth.dec : true },
+            { label: "IV Percentile",  value: "28th (Low)",                                           positive: true  },
+            { label: "US 10Y Yield",   value: us10y ? `${us10y.toFixed(2)}%` : "4.32%",              positive: false },
+            { label: "USD/INR",        value: usdInr ? usdInr.toFixed(2) : "83.42",                  positive: false },
           ].map(({ label, value, positive }) => (
             <div key={label} className="card-base p-2.5">
               <div className="text-[9px] text-ivory-600 uppercase tracking-wider">{label}</div>
