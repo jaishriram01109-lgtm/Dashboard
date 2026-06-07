@@ -5,6 +5,7 @@ import Header from "@/components/Header";
 import MarketTicker from "@/components/MarketTicker";
 import AngelLogin from "@/components/AngelLogin";
 import { getAngelSession, getStoredRefreshToken, refreshAngelSession } from "@/lib/angelOne";
+import { preloadScripMaster } from "@/lib/scripMaster";
 import Sidebar from "@/components/Sidebar";
 import { alertData } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
@@ -153,6 +154,9 @@ export default function Dashboard() {
 
   // Check Angel One session; auto-refresh if refresh token exists
   useEffect(() => {
+    // Start scrip master download immediately so it's ready for live data
+    preloadScripMaster();
+
     const init = async () => {
       const session = getAngelSession();
       if (session) { setAngelActive(true); return; }

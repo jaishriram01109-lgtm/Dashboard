@@ -6,13 +6,34 @@ import {
   STOCK_INSTRUMENTS,
   INDEX_INSTRUMENTS,
   type AngelQuote,
+  type Instrument,
 } from "@/lib/angelOne";
+import { resolveTokens, preloadScripMaster } from "@/lib/scripMaster";
 
 export type QuoteMap = Map<string, AngelQuote>;
 
 // ── Cache (30s TTL) ────────────────────────────────────────────────────────
 let _cache: { quotes: QuoteMap; ts: number } | null = null;
 const CACHE_TTL = 30_000;
+
+// Additional symbols used across dashboard components — resolved via scrip master
+const EXTRA_SYMBOLS = [
+  "ZOMATO", "HINDALCO", "COALINDIA", "HAL", "BEL", "RVNL",
+  "DLF", "INDUSINDBK", "PNB", "LTIM", "GODREJPROP",
+  "MTAR", "OBEROIRLTY", "IRCTC", "IRFC", "TITAGARH",
+  "VEDL", "M&M", "BAJAJ-AUTO", "DABUR", "ADANIGREEN",
+  "SIEMENS", "ABB", "ADANIPORTS", "BAJAJFINSV", "PAYTM",
+  "BRIGADE", "MACROTECH",
+];
+
+// Start loading scrip master as soon as this module is imported
+preloadScripMaster();
+
+function batchArray<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
 
 export async function fetchAllQuotes(): Promise<{ quotes: QuoteMap; isLive: boolean }> {
   const session = getAngelSession();
@@ -22,8 +43,32 @@ export async function fetchAllQuotes(): Promise<{ quotes: QuoteMap; isLive: bool
     return { quotes: _cache.quotes, isLive: true };
   }
 
-  const all = [...Object.values(INDEX_INSTRUMENTS), ...Object.values(STOCK_INSTRUMENTS)];
-  const rawQuotes = await getAngelQuotes(session, all);
+  // Core instruments always fetched
+  const coreInstruments: Instrument[] = [
+    ...Object.values(INDEX_INSTRUMENTS),
+    ...Object.values(STOCK_INSTRUMENTS),
+  ];
+
+  // Resolve additional symbols via scrip master (non-blocking if not yet loaded)
+  const extraTokenMap = await resolveTokens(EXTRA_SYMBOLS);
+  const extraInstruments: Instrument[] = [];
+  extraTokenMap.forEach((symToken, symbol) => {
+    // Skip any that are already in coreInstruments to avoid duplicates
+    const alreadyCore =
+      STOCK_INSTRUMENTS[symbol] !== undefined ||
+      INDEX_INSTRUMENTS[symbol] !== undefined;
+    if (!alreadyCore) {
+      extraInstruments.push({ token: symToken.token, exchange: symToken.exchange, name: symbol });
+    }
+  });
+
+  const allInstruments = [...coreInstruments, ...extraInstruments];
+
+  // Batch in groups of 50 to respect Angel One API limits
+  const batches = batchArray(allInstruments, 50);
+  const batchResults = await Promise.all(batches.map(b => getAngelQuotes(session, b)));
+  const rawQuotes = batchResults.flat();
+
   if (!rawQuotes.length) return { quotes: _cache?.quotes ?? new Map(), isLive: !!_cache };
 
   const map: QuoteMap = new Map();
@@ -31,7 +76,7 @@ export async function fetchAllQuotes(): Promise<{ quotes: QuoteMap; isLive: bool
     map.set(q.token, q);
     map.set(q.name, q);
   });
-  // Also index by STOCK_INSTRUMENTS key (symbol name like "RELIANCE")
+  // Index by symbol keys for easy lookup (e.g. map.get("RELIANCE"))
   Object.entries(STOCK_INSTRUMENTS).forEach(([key, inst]) => {
     const q = map.get(inst.token);
     if (q) map.set(key, q);
@@ -40,6 +85,7 @@ export async function fetchAllQuotes(): Promise<{ quotes: QuoteMap; isLive: bool
     const q = map.get(inst.token);
     if (q) map.set(key, q);
   });
+  // Extra symbols are already indexed via map.set(q.name, q) since name = symbol
 
   _cache = { quotes: map, ts: Date.now() };
   return { quotes: map, isLive: true };
