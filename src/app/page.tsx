@@ -136,6 +136,7 @@ const LIVE_SECTIONS = new Set([
   "home", "portfolio", "watchlist", "scanner", "breadth",
   "global", "currency", "commodity", "bonds", "index", "stocks",
   "sectors", "advanced-chart", "options", "fno", "smart-money",
+  "screener", "highlows",
 ]);
 
 function isValidSection(id: string) {

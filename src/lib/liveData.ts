@@ -16,6 +16,8 @@ export const LIVE_SECTION_IDS = new Set<string>([
   "options",          // Angel One live spot price
   "fno",              // Angel One live futures prices
   "smart-money",      // Angel One live stock signals
+  "screener",         // Angel One live price/rsi/smScore overlay
+  "highlows",         // Angel One live 52W high/low breakout data
 ]);
 
 import {
