@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import Header from "@/components/Header";
 import MarketTicker from "@/components/MarketTicker";
 import AngelLogin from "@/components/AngelLogin";
-import { getAngelSession } from "@/lib/angelOne";
+import { getAngelSession, getStoredRefreshToken, refreshAngelSession } from "@/lib/angelOne";
 import Sidebar from "@/components/Sidebar";
 import { alertData } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
@@ -144,15 +144,26 @@ export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [angelActive, setAngelActive] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Check Angel One session on mount
+  // Check Angel One session; auto-refresh if refresh token exists
   useEffect(() => {
-    const session = getAngelSession();
-    if (session) {
-      setAngelActive(true);
-    } else {
+    const init = async () => {
+      const session = getAngelSession();
+      if (session) { setAngelActive(true); return; }
+
+      // Try silent refresh if we have a stored refresh token
+      const hasRt = !!getStoredRefreshToken();
+      if (hasRt) {
+        setRefreshing(true);
+        const refreshed = await refreshAngelSession();
+        setRefreshing(false);
+        if (refreshed) { setAngelActive(true); return; }
+      }
+
       setShowLogin(true);
-    }
+    };
+    init();
   }, []);
 
   // Read hash on mount for direct links / bookmarks
@@ -190,6 +201,16 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      {/* Silent refresh indicator */}
+      {refreshing && (
+        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 border-2 border-maroon-700 border-t-maroon-300 rounded-full animate-spin" />
+            <span className="text-xs text-ivory-500 font-mono">Reconnecting Angel One...</span>
+          </div>
+        </div>
+      )}
+
       {/* Angel One login modal */}
       {showLogin && (
         <AngelLogin

@@ -30,6 +30,8 @@ export interface AngelSession {
   refreshToken: string;
 }
 
+const RT_KEY = "angel_rt"; // localStorage key for refresh token
+
 let _session: AngelSession | null = null;
 
 export function getAngelSession(): AngelSession | null {
@@ -47,11 +49,23 @@ export function getAngelSession(): AngelSession | null {
   } catch { return null; }
 }
 
+export function saveSession(session: AngelSession) {
+  _session = session;
+  sessionStorage.setItem("angel_session", JSON.stringify(session));
+  sessionStorage.setItem("angel_session_ts", Date.now().toString());
+  if (session.refreshToken) localStorage.setItem(RT_KEY, session.refreshToken);
+}
+
 export function clearAngelSession() {
   _session = null;
   sessionStorage.removeItem("angel_session");
   sessionStorage.removeItem("angel_session_ts");
   sessionStorage.removeItem("angel_skipped");
+  localStorage.removeItem(RT_KEY);
+}
+
+export function getStoredRefreshToken(): string | null {
+  try { return localStorage.getItem(RT_KEY); } catch { return null; }
 }
 
 export function isLoginSkipped() {
@@ -60,6 +74,44 @@ export function isLoginSkipped() {
 
 export function setLoginSkipped() {
   sessionStorage.setItem("angel_skipped", "1");
+}
+
+// Silently refresh JWT using stored refresh token — called on page load
+export async function refreshAngelSession(): Promise<AngelSession | null> {
+  const rt = getStoredRefreshToken();
+  if (!rt) return null;
+  try {
+    const res = await angelFetch(
+      "/rest/auth/angelbroking/jwt/v1/generateTokens",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-UserType": "USER",
+          "X-SourceID": "WEB",
+          "X-ClientLocalIP": "127.0.0.1",
+          "X-ClientPublicIP": "127.0.0.1",
+          "X-MACAddress": "00:00:00:00:00:00",
+          "X-PrivateKey": ANGEL_API_KEY,
+          "Authorization": `Bearer ${rt}`,
+        },
+        body: JSON.stringify({ refreshToken: rt }),
+      }
+    );
+    const data = await res.json();
+    if (!data.status || !data.data?.jwtToken) {
+      localStorage.removeItem(RT_KEY);
+      return null;
+    }
+    const session: AngelSession = {
+      jwtToken: data.data.jwtToken,
+      feedToken: data.data.feedToken ?? "",
+      refreshToken: data.data.refreshToken ?? rt,
+    };
+    saveSession(session);
+    return session;
+  } catch { return null; }
 }
 
 async function getPublicIP(): Promise<string> {
@@ -102,9 +154,7 @@ export async function loginAngelOne(
       feedToken: data.data.feedToken ?? "",
       refreshToken: data.data.refreshToken ?? "",
     };
-    _session = session;
-    sessionStorage.setItem("angel_session", JSON.stringify(session));
-    sessionStorage.setItem("angel_session_ts", Date.now().toString());
+    saveSession(session);
     return { session, error: "" };
   } catch (e) {
     return { session: null, error: "Network error. Check internet connection." };
