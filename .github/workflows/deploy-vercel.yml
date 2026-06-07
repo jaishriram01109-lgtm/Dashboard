@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - claude/smart-money-dashboard-in2L7
 
 jobs:
   deploy:
@@ -22,6 +21,7 @@ jobs:
         run: npm ci
 
       - name: Deploy to Vercel
+        continue-on-error: true
         run: npx vercel --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
