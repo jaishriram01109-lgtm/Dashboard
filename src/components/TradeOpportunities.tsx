@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Target, TrendingUp, Shield, Clock, Zap, ChevronDown, ChevronUp } from "lucide-react";
 import { tradeSetups } from "@/lib/mockData";
 import type { TradeSetup, TradeType } from "@/lib/types";
+import { useAngelQuotes } from "@/hooks/useAngelData";
 import { cn, fmt, fmtPct, scoreColor, scoreBg, signalColor } from "@/lib/utils";
 
 const tradeTypeColors: Record<TradeType, string> = {
@@ -57,9 +58,10 @@ function RRVisual({ entry, sl, t1, t2, t3, rr }: { entry: number; sl: number; t1
   );
 }
 
-function TradeCard({ setup }: { setup: TradeSetup }) {
+function TradeCard({ setup, ltp }: { setup: TradeSetup; ltp?: number }) {
   const [expanded, setExpanded] = useState(false);
   const rrColor = setup.riskReward >= 3 ? "text-signal-bull" : setup.riskReward >= 2 ? "text-yellow-400" : "text-signal-bear";
+  const distPct = ltp ? ((ltp - setup.entry) / setup.entry) * 100 : null;
 
   return (
     <div className={cn("card-glass rounded-xl overflow-hidden transition-all", expanded ? "glow-border-maroon" : "")}>
@@ -75,6 +77,16 @@ function TradeCard({ setup }: { setup: TradeSetup }) {
               <span className={cn("label-tag border text-[10px]", tradeTypeColors[setup.tradeType])}>
                 {tradeTypeLabel[setup.tradeType]}
               </span>
+              {ltp && (
+                <span className={cn(
+                  "label-tag text-[9px] font-mono font-bold",
+                  distPct !== null && Math.abs(distPct) < 1 ? "bg-signal-bull/15 text-signal-bull" :
+                  distPct !== null && distPct > 0 ? "bg-gold-500/15 text-gold-400" : "bg-ivory-700/20 text-ivory-400"
+                )}>
+                  LTP ₹{ltp.toLocaleString("en-IN", { maximumFractionDigits: 1 })}
+                  {distPct !== null && ` (${distPct >= 0 ? "+" : ""}${distPct.toFixed(1)}%)`}
+                </span>
+              )}
               <span className="text-[10px] text-ivory-500 font-mono truncate max-w-48">{setup.setupType}</span>
             </div>
             <div className="text-[10px] text-ivory-600 mt-0.5">{setup.name} • {setup.sector}</div>
@@ -225,6 +237,7 @@ function SummaryStats() {
 export default function TradeOpportunities() {
   const [filter, setFilter] = useState<"all" | TradeType>("all");
   const [sortBy, setSortBy] = useState<"conviction" | "rr" | "probability">("conviction");
+  const { quotes, isLive } = useAngelQuotes();
 
   const filtered = tradeSetups
     .filter(t => filter === "all" || t.tradeType === filter)
@@ -243,7 +256,10 @@ export default function TradeOpportunities() {
             <Target className="w-5 h-5 text-maroon-600" />
             Trade Opportunity Engine
           </h2>
-          <p className="text-xs text-ivory-500">AI-generated high-probability setups with entry, SL, and targets</p>
+          <p className="text-xs text-ivory-500">
+            AI-generated high-probability setups with entry, SL, and targets
+            {isLive && <span className="ml-2 text-signal-bull font-semibold">● Live LTP — Angel One</span>}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-signal-bull live-dot" />
@@ -284,7 +300,7 @@ export default function TradeOpportunities() {
 
       <div className="space-y-3">
         {filtered.map(setup => (
-          <TradeCard key={setup.id} setup={setup} />
+          <TradeCard key={setup.id} setup={setup} ltp={quotes.get(setup.symbol)?.ltp} />
         ))}
         {filtered.length === 0 && (
           <div className="card-glass rounded-xl h-32 flex items-center justify-center text-ivory-600 text-sm">

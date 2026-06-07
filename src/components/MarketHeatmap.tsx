@@ -1,7 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { LayoutGrid, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAngelQuotes } from "@/hooks/useAngelData";
 
 type HeatmapView = "nifty50" | "nifty200" | "sector";
 type SortBy = "change" | "mktcap" | "volume";
@@ -165,8 +166,17 @@ function SectorBlock({ sector, stocks }: { sector: string; stocks: HeatStock[] }
 export default function MarketHeatmap() {
   const [view, setView] = useState<HeatmapView>("nifty50");
   const [selectedSector, setSelectedSector] = useState<string>("all");
+  const { quotes, isLive } = useAngelQuotes();
 
-  const displayStocks = HEATMAP_DATA.filter(s =>
+  // Overlay real LTP and changePct from Angel One
+  const liveData = useMemo<HeatStock[]>(() =>
+    HEATMAP_DATA.map(s => {
+      const q = quotes.get(s.symbol);
+      return q ? { ...s, price: q.ltp, change: q.changePct } : s;
+    }),
+  [quotes]);
+
+  const displayStocks = liveData.filter(s =>
     (view === "nifty50" ? s.mktCap >= 5 : true) &&
     (selectedSector === "all" || s.sector === selectedSector)
   );
@@ -190,7 +200,10 @@ export default function MarketHeatmap() {
             <LayoutGrid className="w-5 h-5 text-maroon-600" />
             Market Heatmap
           </h2>
-          <p className="text-xs text-ivory-500">Sector-wise heatmap — tile size = market cap, color = % change</p>
+          <p className="text-xs text-ivory-500">
+            Sector-wise heatmap — tile size = market cap, color = % change
+            {isLive && <span className="ml-2 text-signal-bull font-semibold">● Live — Angel One</span>}
+          </p>
         </div>
         <div className="flex items-center gap-3 text-xs font-mono">
           <span className="text-signal-bull font-bold">{advancers}▲</span>

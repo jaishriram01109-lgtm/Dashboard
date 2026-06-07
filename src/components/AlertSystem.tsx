@@ -1,9 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Bell, AlertTriangle, TrendingUp, TrendingDown, Zap, DollarSign, Activity, X, Settings } from "lucide-react";
 import { alertData } from "@/lib/mockData";
 import type { Alert, AlertSeverity } from "@/lib/types";
 import { cn, timeAgo } from "@/lib/utils";
+import { useAngelQuotes } from "@/hooks/useAngelData";
 
 const alertTypeIcons: Record<string, React.ReactNode> = {
   smart_money_entry: <DollarSign className="w-4 h-4" />,
@@ -136,12 +137,47 @@ function Toggle({ active, onChange }: { active: boolean; onChange: (v: boolean) 
   );
 }
 
+function buildLiveAlerts(quotes: ReturnType<typeof useAngelQuotes>["quotes"]): Alert[] {
+  const alerts: Alert[] = [];
+  let id = 9000;
+  const now = Date.now();
+  quotes.forEach(q => {
+    const pct = q.changePct;
+    if (Math.abs(pct) < 1.5) return;
+    const up = pct > 0;
+    alerts.push({
+      id: String(id++),
+      type: Math.abs(pct) >= 3 ? (up ? "smart_money_entry" : "breakdown") : (up ? "volume_explosion" : "breakdown"),
+      title: `${q.name} ${up ? "surge" : "drop"} ${up ? "+" : ""}${pct.toFixed(1)}%`,
+      message: `${q.name} trading at ₹${q.ltp.toLocaleString("en-IN", { maximumFractionDigits: 1 })} — ${up ? "strong buying" : "selling pressure"} with ${Math.abs(pct).toFixed(1)}% move. Vol: ${(q.volume / 1000).toFixed(0)}K.`,
+      symbol: q.name,
+      severity: (Math.abs(pct) >= 4 ? "critical" : Math.abs(pct) >= 2.5 ? "high" : "medium") as AlertSeverity,
+      timestamp: new Date(now - Math.floor(Math.random() * 600_000)).toISOString(),
+      read: false,
+      actionable: Math.abs(pct) >= 2.5,
+    });
+  });
+  return alerts.sort((a, b) => Math.abs(Number(b.id) - 9000) - Math.abs(Number(a.id) - 9000)).slice(0, 12);
+}
+
 export default function AlertSystem() {
   const [alerts, setAlerts] = useState<Alert[]>(alertData);
   const [channels, setChannels] = useState(alertChannels);
   const [types, setTypes] = useState(alertTypes);
   const [activeTab, setActiveTab] = useState<"alerts" | "settings">("alerts");
   const [filterSeverity, setFilterSeverity] = useState<"all" | AlertSeverity>("all");
+  const { quotes, isLive } = useAngelQuotes();
+  const seededRef = useRef(false);
+
+  // When live quotes arrive, prepend real price-movement alerts (once per session)
+  useEffect(() => {
+    if (!isLive || seededRef.current || quotes.size === 0) return;
+    seededRef.current = true;
+    const liveAlerts = buildLiveAlerts(quotes);
+    if (liveAlerts.length > 0) {
+      setAlerts(prev => [...liveAlerts, ...prev]);
+    }
+  }, [isLive, quotes]);
 
   const markRead = (id: string) => {
     setAlerts(prev => prev.map(a => a.id === id ? { ...a, read: true } : a));
@@ -165,7 +201,10 @@ export default function AlertSystem() {
             <Bell className="w-5 h-5 text-maroon-600" />
             Live Alert System
           </h2>
-          <p className="text-xs text-ivory-500">Real-time institutional alerts • Smart money signals • Volume explosions</p>
+          <p className="text-xs text-ivory-500">
+            Real-time institutional alerts • Smart money signals • Volume explosions
+            {isLive && <span className="ml-2 text-signal-bull font-semibold">● Live — Angel One</span>}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {unread > 0 && (
