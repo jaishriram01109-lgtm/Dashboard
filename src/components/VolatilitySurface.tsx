@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Zap, TrendingUp, TrendingDown, BarChart2 } from "lucide-react";
+import { useAngelQuotes } from "@/hooks/useAngelData";
 import {
   LineChart,
   ComposedChart,
@@ -155,6 +156,7 @@ function formatOI(oi: number): string {
 
 export default function VolatilitySurface() {
   const [selectedExpiry, setSelectedExpiry] = useState<Expiry>("Near");
+  const { quotes, isLive } = useAngelQuotes();
   const ivp = IV_PERCENTILE;
 
   const atmDTE = TERM_STRUCTURE.find((t) => t.atm)?.daysToExpiry ?? 10;
@@ -166,7 +168,8 @@ export default function VolatilitySurface() {
   const lastIV = TERM_STRUCTURE[TERM_STRUCTURE.length - 1].iv;
   const termShape = lastIV > firstIV ? "Contango" : "Backwardation";
 
-  const currentVIX = VIX_HISTORY[VIX_HISTORY.length - 1].vix;
+  const liveVIX = quotes.get("INDIA_VIX")?.ltp;
+  const currentVIX = liveVIX ?? VIX_HISTORY[VIX_HISTORY.length - 1].vix;
   const currentRV = VIX_HISTORY[VIX_HISTORY.length - 1].realizedVol;
   const ivRVSpread = Math.round((currentVIX - currentRV) * 10) / 10;
   const spreadLabel = ivRVSpread > 0 ? "Rich" : "Cheap";
@@ -181,6 +184,9 @@ export default function VolatilitySurface() {
         <span className="text-xs text-ivory-600 bg-bg-card border border-bg-border rounded px-2 py-0.5">
           NIFTY Options
         </span>
+        {isLive && liveVIX && (
+          <span className="label-tag bg-signal-bull/15 text-signal-bull text-[9px]">● VIX LIVE</span>
+        )}
       </div>
 
       {/* Top Stats Row */}

@@ -23,6 +23,7 @@ export const LIVE_SECTION_IDS = new Set<string>([
   "alerts",           // Angel One live price-movement alerts
   "charts",           // Angel One live market breadth
   "ai-predict",       // Angel One live LTP on stock predictions
+  "volatility",       // Angel One live India VIX
 ]);
 
 import {
