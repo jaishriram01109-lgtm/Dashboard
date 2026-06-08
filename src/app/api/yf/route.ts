@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // force-static lets Hostinger static export build succeed; Vercel uses force-dynamic
-export const dynamic = process.env.HOSTINGER === "true" ? "force-static" : "force-dynamic";
+export const dynamic = (process.env.HOSTINGER === "true" || process.env.GITHUB_PAGES === "true") ? "force-static" : "force-dynamic";
 
 // Server-side Yahoo Finance proxy — avoids browser CORS restrictions
 export async function GET(request: NextRequest) {
