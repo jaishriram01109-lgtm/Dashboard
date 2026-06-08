@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export const dynamic = process.env.HOSTINGER === "true" ? "force-static" : "force-dynamic";
+export const dynamic = (process.env.HOSTINGER === "true" || process.env.GITHUB_PAGES === "true") ? "force-static" : "force-dynamic";
 
 const ANGEL_BASE = "https://apiconnect.angelbroking.com";
 
