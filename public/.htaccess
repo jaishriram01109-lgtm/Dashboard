@@ -1,0 +1,19 @@
+# Force no-cache for HTML (index.html must always be fresh)
+<FilesMatch "\.(html|htm)$">
+  Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+  Header set Pragma "no-cache"
+  Header set Expires "Thu, 01 Jan 1970 00:00:00 GMT"
+</FilesMatch>
+
+# Cache JS/CSS/fonts aggressively (they have hashed filenames)
+<FilesMatch "\.(js|css|woff|woff2|ttf|ico|png|jpg|svg)$">
+  Header set Cache-Control "public, max-age=31536000, immutable"
+</FilesMatch>
+
+# SPA fallback — serve index.html for all 404s
+ErrorDocument 404 /index.html
+
+# Gzip compression
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json
+</IfModule>

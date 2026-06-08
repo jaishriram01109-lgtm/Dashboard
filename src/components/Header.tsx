@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Bell, Activity, Cpu, TrendingUp, Shield, ChevronDown } from "lucide-react";
+import { Bell, Activity, Cpu, TrendingUp, Shield, ChevronDown, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/context/ThemeContext";
 
 interface HeaderProps {
   unreadCount: number;
@@ -14,6 +15,7 @@ interface HeaderProps {
 export default function Header({ unreadCount, onAlertClick, onNavigate, angelActive, onAngelLoginClick }: HeaderProps) {
   const [time, setTime] = useState(new Date());
   const [marketOpen, setMarketOpen] = useState(false);
+  const { theme, toggle } = useTheme();
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -108,6 +110,17 @@ export default function Header({ unreadCount, onAlertClick, onNavigate, angelAct
           <span className={cn("w-1.5 h-1.5 rounded-full", angelActive ? "bg-signal-bull live-dot" : "bg-gold-500")} />
           {angelActive ? "ANGEL LIVE" : "CONNECT ANGEL"}
         </button>
+        {/* Light / Dark toggle */}
+        <button
+          onClick={toggle}
+          title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          className="p-1.5 md:p-2 rounded-lg bg-bg-card border border-bg-border hover:border-maroon-800 transition-colors"
+        >
+          {theme === "dark"
+            ? <Sun  className="w-4 h-4 text-gold-500" />
+            : <Moon className="w-4 h-4 text-maroon-700" />}
+        </button>
+
         <button
           onClick={onAlertClick}
           className="relative p-1.5 md:p-2 rounded-lg bg-bg-card border border-bg-border hover:border-maroon-800 transition-colors"
