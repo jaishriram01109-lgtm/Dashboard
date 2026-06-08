@@ -205,7 +205,9 @@ function getChangeForTF(s: SectorData, tf: TimeFrame): number {
   if (tf === "1W") return s.weeklyChange;
   if (tf === "1M") return s.monthlyChange;
   if (tf === "3M") return +(s.monthlyChange * 2.8).toFixed(2);
+  if (tf === "6M") return +(s.monthlyChange * 5.2).toFixed(2);
   if (tf === "1Y") return s.yearlyChange;
+  if (tf === "3Y") return +(s.yearlyChange * 2.6).toFixed(2);
   return s.monthlyChange;
 }
 
@@ -240,8 +242,8 @@ function SectorHeatmap({ data, timeframe }: { data: SectorData[]; timeframe: Tim
   );
 }
 
-const TF_RS_SCALE: Record<TimeFrame, number> = { "1D": 0.92, "1W": 0.96, "1M": 1.0, "3M": 1.06, "1Y": 1.14 };
-const TF_MOM_SCALE: Record<TimeFrame, number> = { "1D": 0.88, "1W": 0.94, "1M": 1.0, "3M": 1.08, "1Y": 1.18 };
+const TF_RS_SCALE: Record<TimeFrame, number> = { "1D": 0.92, "1W": 0.96, "1M": 1.0, "3M": 1.06, "6M": 1.10, "1Y": 1.14, "3Y": 1.22 };
+const TF_MOM_SCALE: Record<TimeFrame, number> = { "1D": 0.88, "1W": 0.94, "1M": 1.0, "3M": 1.08, "6M": 1.13, "1Y": 1.18, "3Y": 1.28 };
 
 // Scatter: RS vs Momentum
 function RSvsMomentum({ data: sectors, timeframe }: { data: SectorData[]; timeframe: TimeFrame }) {
