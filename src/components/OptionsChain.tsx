@@ -122,10 +122,10 @@ const PRESET_SYMBOLS = [
 ];
 
 const DEFAULT_SPOTS: Record<string, number> = {
-  NIFTY: 24856, BANKNIFTY: 53200, FINNIFTY: 23800,
-  RELIANCE: 2900, TCS: 3870, HDFCBANK: 1840, INFY: 1580, ICICIBANK: 1280,
-  LT: 3580, AXISBANK: 1180, BAJFINANCE: 7400, WIPRO: 480, KOTAKBANK: 1860,
-  SUNPHARMA: 1745, TATAMOTORS: 840, MARUTI: 12400, ADANIPORTS: 1280, HAL: 4280, RVNL: 415,
+  NIFTY: 23123, BANKNIFTY: 51500, FINNIFTY: 23100,
+  RELIANCE: 1295, TCS: 3420, HDFCBANK: 1648, INFY: 1395, ICICIBANK: 1372,
+  LT: 3340, AXISBANK: 1085, BAJFINANCE: 6920, WIPRO: 272, KOTAKBANK: 1945,
+  SUNPHARMA: 1748, TATAMOTORS: 598, MARUTI: 11480, ADANIPORTS: 1185, HAL: 4195, RVNL: 298,
 };
 
 // ─── OI BAR CHART ────────────────────────────────────────────
@@ -244,7 +244,7 @@ export default function OptionsChain() {
 
   const { quotes, isLive } = useAngelQuotes();
   const liveQ = quotes.get(symbol);
-  const spot = liveQ?.ltp ?? DEFAULT_SPOTS[symbol] ?? 24856;
+  const spot = liveQ?.ltp ?? DEFAULT_SPOTS[symbol] ?? 23123;
 
   const chain = useMemo(() => genChain(spot, symbol, activeExpiry), [spot, symbol, activeExpiry]);
   const maxPain = useMemo(() => computeMaxPain(chain), [chain]);
