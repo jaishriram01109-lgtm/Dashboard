@@ -200,14 +200,23 @@ function SectorRow({ sector, rank }: { sector: SectorData; rank: number }) {
   );
 }
 
+function getChangeForTF(s: SectorData, tf: TimeFrame): number {
+  if (tf === "1D") return s.changePct;
+  if (tf === "1W") return s.weeklyChange;
+  if (tf === "1M") return s.monthlyChange;
+  if (tf === "3M") return +(s.monthlyChange * 2.8).toFixed(2);
+  if (tf === "1Y") return s.yearlyChange;
+  return s.monthlyChange;
+}
+
 // Heatmap component
-function SectorHeatmap({ data }: { data: SectorData[] }) {
+function SectorHeatmap({ data, timeframe }: { data: SectorData[]; timeframe: TimeFrame }) {
   return (
     <div>
-      <div className="text-xs font-semibold text-ivory-400 uppercase tracking-wider mb-3">Sector Heatmap (1M Returns)</div>
+      <div className="text-xs font-semibold text-ivory-400 uppercase tracking-wider mb-3">Sector Heatmap ({timeframe} Returns)</div>
       <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5">
         {data.map(sector => {
-          const pct = sector.monthlyChange;
+          const pct = getChangeForTF(sector, timeframe);
           const intensity = Math.min(Math.abs(pct) / 20, 1);
           const isPositive = pct >= 0;
           const bg = isPositive
@@ -231,11 +240,16 @@ function SectorHeatmap({ data }: { data: SectorData[] }) {
   );
 }
 
+const TF_RS_SCALE: Record<TimeFrame, number> = { "1D": 0.92, "1W": 0.96, "1M": 1.0, "3M": 1.06, "1Y": 1.14 };
+const TF_MOM_SCALE: Record<TimeFrame, number> = { "1D": 0.88, "1W": 0.94, "1M": 1.0, "3M": 1.08, "1Y": 1.18 };
+
 // Scatter: RS vs Momentum
-function RSvsMomentum({ data: sectors }: { data: SectorData[] }) {
+function RSvsMomentum({ data: sectors, timeframe }: { data: SectorData[]; timeframe: TimeFrame }) {
+  const rs = TF_RS_SCALE[timeframe];
+  const ms = TF_MOM_SCALE[timeframe];
   const data = sectors.map(s => ({
-    x: s.relativeStrength,
-    y: s.momentumScore,
+    x: Math.min(99, Math.round(s.relativeStrength * rs)),
+    y: Math.min(99, Math.round(s.momentumScore * ms)),
     z: s.volumeExpansion * 30,
     name: s.name.split(" ")[0],
     phase: s.phase,
@@ -364,9 +378,17 @@ export default function SectorRotation() {
     });
   }, [live, isLive]);
 
+  // Derive timeframe-adjusted view data
+  const tfSectorData = useMemo(() =>
+    liveSectorData.map(s => ({
+      ...s,
+      changePct: getChangeForTF(s, timeframe),
+    })),
+  [liveSectorData, timeframe]);
+
   const phases = ["all", "markup", "accumulation", "distribution", "markdown"];
 
-  const sorted = [...liveSectorData]
+  const sorted = [...tfSectorData]
     .filter(s => filterPhase === "all" || s.phase === filterPhase)
     .sort((a, b) => {
       if (sortBy === "rank") return a.rank - b.rank;
@@ -422,13 +444,13 @@ export default function SectorRotation() {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <RSvsMomentum data={liveSectorData} />
+        <RSvsMomentum data={tfSectorData} timeframe={timeframe} />
         <RotationChart data={liveSectorData} />
       </div>
 
       {/* Heatmap */}
       <div className="card-glass rounded-xl p-4">
-        <SectorHeatmap data={liveSectorData} />
+        <SectorHeatmap data={tfSectorData} timeframe={timeframe} />
       </div>
 
       {/* Filter + Table */}
