@@ -35,8 +35,9 @@ function getUpcomingExpiries(symbol: string): string[] {
   const dates: string[] = [];
 
   if (isIndex) {
-    // Weekly: NIFTY/FINNIFTY = Thursday (4), BANKNIFTY = Wednesday (3)
-    const targetDay = symbol.toUpperCase() === "BANKNIFTY" ? 3 : 4;
+    // Weekly: NIFTY = Tuesday (2), FINNIFTY = Tuesday (2), BANKNIFTY = Wednesday (3)
+    const sym = symbol.toUpperCase();
+    const targetDay = sym === "BANKNIFTY" ? 3 : 2;
     const d = new Date(now);
     d.setHours(0, 0, 0, 0);
     // Include today if it's the expiry day and market hasn't closed
@@ -425,7 +426,7 @@ export default function OptionsChain() {
       {/* ── IV Smile ── */}
       <div className="card-base p-4">
         <div className="text-xs font-semibold text-ivory-400 uppercase tracking-wider mb-3">
-          Implied Volatility Smile — {symbol}
+          Implied Volatility Smile
         </div>
         <IVSmile chain={chain} />
         <div className="flex gap-4 mt-1 text-[10px] text-ivory-500">
