@@ -277,11 +277,16 @@ export default function DashboardHome({ onNavigate }: Props) {
       </div>
 
       {/* Footer */}
-      <div className="text-center text-[10px] text-ivory-700 pt-2 border-t border-bg-border">
-        SmartFlow AI v2.0.0 · 52 Sections · NSE · BSE · FII/DII · Options · Macro
-        {dataSource === "angel" && <span className="text-signal-bull ml-2">· Data: Angel One SmartAPI</span>}
-        {dataSource === "yahoo" && <span className="text-signal-bull ml-2">· Data: Yahoo Finance</span>}
-        {dataSource === "simulated" && <span className="text-gold-500 ml-2">· Connect Angel One for live data</span>}
+      <div className="text-center text-[10px] text-ivory-700 pt-2 border-t border-bg-border space-y-0.5">
+        <div>
+          SmartFlow AI v2.1.0 · 52 Sections · NSE · BSE · FII/DII · Options · Macro
+          {dataSource === "angel" && <span className="text-signal-bull ml-2">· Data: Angel One SmartAPI</span>}
+          {dataSource === "yahoo" && <span className="text-signal-bull ml-2">· Data: Yahoo Finance</span>}
+          {dataSource === "simulated" && <span className="text-gold-500 ml-2">· Connect Angel One for live data</span>}
+        </div>
+        <div className="text-[9px] text-ivory-800 font-mono">
+          Build: {process.env.NEXT_PUBLIC_BUILD_TIME ?? "dev"}
+        </div>
       </div>
     </div>
   );
