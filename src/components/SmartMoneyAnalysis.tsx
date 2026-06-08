@@ -252,23 +252,31 @@ export default function SmartMoneyAnalysis() {
       {/* FII/DII Flow */}
       {activeTab === "flow" && (
         <div className="space-y-4">
+          <div className="flex items-center gap-2 px-3 py-2 bg-gold-500/10 border border-gold-500/20 rounded-lg">
+            <AlertTriangle className="w-3.5 h-3.5 text-gold-500 flex-shrink-0" />
+            <span className="text-[10px] text-gold-400">FII/DII flow numbers below are indicative estimates. For real-time SEBI data, check NSE/BSE official portals.</span>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
               { label: "FII Net (MTD)", value: "₹12,450 Cr", change: "+29.6%", positive: true },
               { label: "DII Net (MTD)", value: "₹8,320 Cr", change: "+17.5%", positive: true },
               { label: "Cumulative Net", value: "₹20,770 Cr", change: "+24.1%", positive: true },
             ].map(c => (
-              <div key={c.label} className="card-glass rounded-xl p-3 text-center">
+              <div key={c.label} className="card-glass rounded-xl p-3 text-center relative overflow-hidden">
                 <div className="text-xs text-ivory-500">{c.label}</div>
                 <div className={cn("text-xl font-mono font-bold mt-1", c.positive ? "text-signal-bull" : "text-signal-bear")}>{c.value}</div>
                 <div className={cn("text-xs font-mono", c.positive ? "text-signal-bull" : "text-signal-bear")}>{c.change} MoM</div>
+                <span className="absolute top-1 right-1 text-[8px] font-mono text-gold-500/60">EST.</span>
               </div>
             ))}
           </div>
 
           <div className="card-glass rounded-xl p-4">
-            <div className="text-xs font-semibold text-ivory-400 uppercase tracking-wider mb-3">
-              Cumulative FII/DII Flow (30 Days)
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs font-semibold text-ivory-400 uppercase tracking-wider">
+                Cumulative FII/DII Flow (30 Days)
+              </div>
+              <span className="text-[9px] font-mono text-gold-500/70 bg-gold-500/10 px-1.5 py-0.5 rounded">SIMULATED</span>
             </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
@@ -299,8 +307,11 @@ export default function SmartMoneyAnalysis() {
           </div>
 
           <div className="card-glass rounded-xl p-4">
-            <div className="text-xs font-semibold text-ivory-400 uppercase tracking-wider mb-3">
-              Sector-wise FII Allocation
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs font-semibold text-ivory-400 uppercase tracking-wider">
+                Sector-wise FII Allocation
+              </div>
+              <span className="text-[9px] font-mono text-gold-500/70 bg-gold-500/10 px-1.5 py-0.5 rounded">INDICATIVE</span>
             </div>
             <div className="h-44">
               <ResponsiveContainer width="100%" height="100%">
@@ -335,10 +346,22 @@ export default function SmartMoneyAnalysis() {
       {activeTab === "wyckoff" && (
         <div className="space-y-4">
           <div className="card-glass rounded-xl p-4">
-            <div className="text-xs font-semibold text-ivory-400 uppercase tracking-wider mb-1">
-              Wyckoff Market Cycle Detector
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-xs font-semibold text-ivory-400 uppercase tracking-wider">
+                Wyckoff Market Cycle Detector
+              </div>
+              <span className={cn(
+                "text-[9px] font-mono px-1.5 py-0.5 rounded",
+                isLive ? "text-signal-bull bg-signal-bull/10" : "text-gold-500/70 bg-gold-500/10"
+              )}>
+                {isLive ? "CONFIDENCE: LIVE" : "PHASES: SIMULATED"}
+              </span>
             </div>
-            <p className="text-xs text-ivory-600 mb-4">AI-detected Wyckoff accumulation/distribution phases across NSE stocks</p>
+            <p className="text-xs text-ivory-600 mb-4">
+              {isLive
+                ? "Confidence scores updated from live Angel One price data. Phase labels are AI analysis."
+                : "Connect Angel One to update confidence scores with real price momentum."}
+            </p>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[500px]">
                 <thead>
@@ -394,6 +417,10 @@ export default function SmartMoneyAnalysis() {
       {/* ICT/SMC Concepts */}
       {activeTab === "ict" && (
         <div className="space-y-4">
+          <div className="flex items-center gap-2 px-3 py-2 bg-gold-500/10 border border-gold-500/20 rounded-lg">
+            <AlertTriangle className="w-3.5 h-3.5 text-gold-500 flex-shrink-0" />
+            <span className="text-[10px] text-gold-400">ICT/SMC detections below are AI-generated pattern analysis. These are educational illustrations — not live order book data.</span>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {ictConcepts.map(c => (
               <div key={c.label} className="card-glass rounded-xl p-3 flex items-start gap-3">
@@ -407,8 +434,11 @@ export default function SmartMoneyAnalysis() {
           </div>
 
           <div className="card-glass rounded-xl p-4">
-            <div className="text-xs font-semibold text-ivory-400 uppercase tracking-wider mb-3">
-              ICT Smart Money Concepts — Key Detections
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs font-semibold text-ivory-400 uppercase tracking-wider">
+                ICT Smart Money Concepts — Key Detections
+              </div>
+              <span className="text-[9px] font-mono text-gold-500/70 bg-gold-500/10 px-1.5 py-0.5 rounded">AI ANALYSIS</span>
             </div>
             <div className="space-y-3">
               {[

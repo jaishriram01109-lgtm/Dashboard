@@ -165,7 +165,10 @@ export default function OptionsChain() {
           </h2>
           <p className="text-xs text-ivory-500">
             Put-Call Ratio • Max Pain • IV Smile • Open Interest Heatmap
-            {isLive && <span className="ml-2 text-signal-bull font-semibold">● Live spot — Angel One</span>}
+            {isLive
+              ? <span className="ml-2 text-signal-bull font-semibold">● Spot: LIVE (Angel One) · OI/IV: Simulated</span>
+              : <span className="ml-2 text-gold-500/80">Spot + OI/IV: Simulated</span>
+            }
           </p>
         </div>
         <div className="flex gap-2">
@@ -181,18 +184,32 @@ export default function OptionsChain() {
         </div>
       </div>
 
+      {/* Data note */}
+      <div className="flex items-start gap-2 px-3 py-2 bg-gold-500/10 border border-gold-500/20 rounded-lg text-[10px] text-gold-400">
+        <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-gold-500" />
+        <span>
+          <strong>Spot price</strong> is {isLive ? "live from Angel One" : "simulated"}.
+          <strong> OI, IV, and volume</strong> are algorithmically generated for illustration — real options data requires Angel One F&amp;O subscription or NSE direct feed.
+          PCR and Max Pain are calculated from this simulated OI, so treat them as directional guides only.
+        </span>
+      </div>
+
       {/* KPI row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: "Spot Price", value: `₹${fmt(selectedSymbol.spot)}`, color: "text-ivory-100" },
-          { label: "Max Pain", value: `₹${fmt(maxPain, 0)}`, color: "text-gold-500", sub: `${((maxPain - selectedSymbol.spot) / selectedSymbol.spot * 100).toFixed(1)}% from spot` },
-          { label: "Total Call OI", value: `${(totalCallOI / 100000).toFixed(1)}L`, color: "text-signal-bear" },
-          { label: "Total Put OI", value: `${(totalPutOI / 100000).toFixed(1)}L`, color: "text-signal-bull" },
+          { label: "Spot Price", value: `₹${fmt(selectedSymbol.spot)}`, color: "text-ivory-100", badge: isLive ? "LIVE" : "SIM" },
+          { label: "Max Pain", value: `₹${fmt(maxPain, 0)}`, color: "text-gold-500", sub: `${((maxPain - selectedSymbol.spot) / selectedSymbol.spot * 100).toFixed(1)}% from spot`, badge: "EST" },
+          { label: "Total Call OI", value: `${(totalCallOI / 100000).toFixed(1)}L`, color: "text-signal-bear", badge: "SIM" },
+          { label: "Total Put OI", value: `${(totalPutOI / 100000).toFixed(1)}L`, color: "text-signal-bull", badge: "SIM" },
         ].map(k => (
-          <div key={k.label} className="card-glass rounded-xl p-3 text-center">
+          <div key={k.label} className="card-glass rounded-xl p-3 text-center relative overflow-hidden">
             <div className={cn("text-xl font-mono font-bold", k.color)}>{k.value}</div>
             <div className="text-xs text-ivory-400 mt-0.5">{k.label}</div>
             {k.sub && <div className="text-[10px] text-ivory-600">{k.sub}</div>}
+            <span className={cn(
+              "absolute top-1 right-1.5 text-[8px] font-mono",
+              k.badge === "LIVE" ? "text-signal-bull" : "text-gold-500/60"
+            )}>{k.badge}</span>
           </div>
         ))}
       </div>
