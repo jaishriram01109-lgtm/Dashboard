@@ -317,7 +317,7 @@ export default function OptionsChain() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: "Spot", val: `₹${fmt(spot)}`, badge: isLive ? "LIVE" : "SIM" },
-          { label: "ATM Strike", val: `₹${fmt(Math.round(spot / (spot > 20000 ? 100 : 50)) * (spot > 20000 ? 100 : 50))}`, badge: "CALC" },
+          { label: "ATM Strike", val: `₹${fmt(chain.find(r => r.isATM)?.strike ?? spot)}`, badge: "CALC" },
           { label: "Max Pain", val: `₹${fmt(maxPain)}`, sub: `${((maxPain - spot) / spot * 100).toFixed(1)}%`, badge: "SIM" },
           { label: "PCR", val: pcr.toFixed(2), badge: "SIM" },
         ].map(({ label, val, sub, badge }) => (
