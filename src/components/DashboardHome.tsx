@@ -24,7 +24,7 @@ const MOCK_INDICES: IndexQuote[] = [
 
 const MOCK_CHART: ChartPoint[] = Array.from({ length: 20 }, (_, i) => ({
   t: i,
-  v: 22600 + Math.round(Math.sin(i * 0.45) * 120 + Math.cos(i * 0.25) * 60 + i * 12),
+  v: 23000 + Math.round(Math.sin(i * 0.45) * 120 + Math.cos(i * 0.25) * 60 + i * 12),
 }));
 
 const SECTIONS_GRID = [
