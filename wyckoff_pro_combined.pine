@@ -1,0 +1,618 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0
+// Wyckoff Pro — Complete System (Nifty + BankNifty + NSE Stocks)
+// Phase Detection · Volume Engine · Options Strategy · Position Sizer · Alerts
+
+//@version=6
+indicator(title = "Wyckoff Pro — Complete System [Nifty/BankNifty/Stocks]", shorttitle = "Wyckoff Pro", overlay = true, max_boxes_count = 10, max_lines_count = 30, max_labels_count = 300, max_bars_back = 500)
+
+// ═══════════════════════════════════════════════════════════════
+// INPUTS — Instrument
+// ═══════════════════════════════════════════════════════════════
+
+i_inst    = input.string("Nifty",     "Type",                options = ["Nifty","Bank Nifty","NSE Stock"],  group = "Instrument")
+i_lot     = input.int(65,             "Lot Size",             minval = 1,                                   group = "Instrument", tooltip = "Nifty=65 | BankNifty=15 | Stocks=varies")
+i_fii     = input.float(25.0,         "FII Holding %",        minval = 0.0, maxval = 100.0,                 group = "Instrument")
+i_results = input.bool(false,         "Results Week",                                                        group = "Instrument", tooltip = "Reduces quality score and widens volume thresholds")
+
+// ─── Detection ───
+i_volMult  = input.float(2.5,   "Climax Volume Mult",         minval = 1.5, maxval = 5.0, step = 0.1,       group = "Detection")
+i_lb       = input.int(50,      "Range Lookback (bars)",       minval = 20,  maxval = 200,                   group = "Detection")
+i_sens     = input.string("Medium", "Sensitivity",             options = ["Low","Medium","High"],            group = "Detection")
+i_expBoost = input.bool(true,   "Expiry Day Boost",                                                          group = "Detection", tooltip = "Tue=Nifty | Wed=BankNifty — 20% sensitivity boost on expiry days")
+
+// ─── Options Strategy ───
+i_atmP    = input.float(100.0, "ATM Premium (Rs)",             minval = 1.0,                                 group = "Options Strategy")
+i_iv      = input.float(15.0,  "Current IV %",                 minval = 1.0,                                 group = "Options Strategy")
+i_dte     = input.int(5,       "Days to Expiry",               minval = 0, maxval = 90,                      group = "Options Strategy")
+i_maxPain = input.float(0.0,   "Max Pain Level (0 = off)",     minval = 0.0,                                 group = "Options Strategy")
+i_stStep  = input.int(50,      "Strike Step (Rs)",             minval = 25,                                  group = "Options Strategy", tooltip = "Nifty=50 | BankNifty=100")
+
+// ─── Trade Planner ───
+i_entry   = input.float(0.0,      "Entry Price  (0 = close)", minval = 0.0,                                  group = "Trade Planner")
+i_sl      = input.float(0.0,      "Stop Price   (0 = auto)",  minval = 0.0,                                  group = "Trade Planner")
+i_t1      = input.float(0.0,      "Target 1     (0 = auto)",  minval = 0.0,                                  group = "Trade Planner")
+i_t2      = input.float(0.0,      "Target 2     (0 = auto)",  minval = 0.0,                                  group = "Trade Planner")
+i_dir     = input.string("LONG",  "Direction",                 options = ["LONG","SHORT"],                   group = "Trade Planner")
+i_cap     = input.float(500000.0, "Capital (Rs)",              minval = 10000.0,                             group = "Trade Planner")
+i_riskPct = input.float(2.0,      "Risk %",                    minval = 0.25, maxval = 10.0, step = 0.25,    group = "Trade Planner")
+i_mrgn    = input.float(110000.0, "Margin per Lot (Rs)",       minval = 1000.0,                              group = "Trade Planner")
+
+// ─── Display ───
+i_dLbls  = input.bool(true,  "Event Labels",       group = "Display")
+i_dBox   = input.bool(true,  "Range Box",          group = "Display")
+i_dTgts  = input.bool(true,  "Price Targets",      group = "Display")
+i_dDash  = input.bool(true,  "Wyckoff Dashboard",  group = "Display")
+i_dPlan  = input.bool(true,  "Trade Planner",      group = "Display")
+i_dEquil = input.bool(true,  "Equilibrium Line",   group = "Display")
+i_dVol   = input.bool(true,  "Volume Signals",     group = "Display")
+
+// ─── Alerts ───
+i_aSpring = input.bool(true, "Spring / UTAD",  group = "Alerts")
+i_aSOS    = input.bool(true, "SOS / SOW",      group = "Alerts")
+i_aLPS    = input.bool(true, "LPS / LPSY",     group = "Alerts")
+i_aExp    = input.bool(true, "Tuesday Spring", group = "Alerts")
+
+// ═══════════════════════════════════════════════════════════════
+// COLOURS
+// ═══════════════════════════════════════════════════════════════
+
+C_ACC   = color.new(#4a9eff, 90)
+C_DIST  = color.new(#ff6b6b, 90)
+C_ACCB  = color.new(#4a9eff, 40)
+C_DISTB = color.new(#ff6b6b, 40)
+C_EQUIL = color.new(#888888, 60)
+C_TMIN  = color.new(#00cc44, 20)
+C_TMAX  = color.new(#00ff88, 20)
+C_DMIN  = color.new(#cc2222, 20)
+C_DMAX  = color.new(#ff4444, 20)
+
+// ═══════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════
+
+cpos()  => (high - low) > 0.0 ? (close - low) / (high - low) : 0.5
+isTue() => dayofweek == dayofweek.tuesday
+isWed() => dayofweek == dayofweek.wednesday
+isExp() => isTue() or isWed()
+
+sensMul() =>
+    float base = i_sens == "Low" ? 1.3 : i_sens == "High" ? 0.7 : 1.0
+    i_expBoost and isExp() ? base * 0.8 : base
+
+// ═══════════════════════════════════════════════════════════════
+// VOLUME ENGINE
+// ═══════════════════════════════════════════════════════════════
+
+vol20   = ta.sma(volume, 20)
+vol50   = ta.sma(volume, 50)
+atr14   = ta.atr(14)
+atr50   = ta.atr(50)
+volRef  = isExp() ? vol50 : vol20
+
+isClim  = volume > volRef * i_volMult
+isLvol  = volume < volRef * 0.75
+isHvol  = volume > volRef * 1.5
+isND    = close > close[1] and volume < volume[1] and volume < volume[2] and (high - low) < atr14 * 0.7 and cpos() < 0.55
+isNS    = close < close[1] and volume < volume[1] and volume < volume[2] and (high - low) < atr14 * 0.7 and cpos() > 0.45
+isAbsorb = (high - low) > atr14 * 1.3 and volume > volRef * 1.8 and math.abs(close - open) < (high - low) * 0.38
+
+volState = isClim ? "CLIMACTIC" : isND ? "NO DEMAND" : isNS ? "NO SUPPLY" : isAbsorb ? "ABSORPTION" : "NORMAL"
+
+// ═══════════════════════════════════════════════════════════════
+// RANGE DETECTION
+// ═══════════════════════════════════════════════════════════════
+
+var float rH   = na
+var float rL   = na
+var bool  rOn  = false
+var bool  isAcc = true
+var float dnVS = 0.0
+var int   dnC  = 0
+var float upVS = 0.0
+var int   upC  = 0
+
+float lbH = ta.highest(high, i_lb)
+float lbL = ta.lowest(low,   i_lb)
+bool  isRng = atr14 < atr50 * 1.35 and (lbH - lbL) < atr50 * 14.0
+
+if isRng and not rOn
+    rH   := lbH
+    rL   := lbL
+    rOn  := true
+    dnVS := 0.0
+    dnC  := 0
+    upVS := 0.0
+    upC  := 0
+
+if rOn
+    if high > rH
+        rH := high
+    if low < rL
+        rL := low
+    float mid = (rH + rL) / 2.0
+    if low < mid
+        dnVS := (dnVS * dnC + volume) / (dnC + 1)
+        dnC  := dnC + 1
+    if high > mid
+        upVS := (upVS * upC + volume) / (upC + 1)
+        upC  := upC + 1
+
+if dnC > 3 and upC > 3
+    isAcc := dnVS < upVS
+
+float equil = rOn and not na(rH) and not na(rL) ? (rH + rL) / 2.0 : na
+float rWid  = rOn and not na(rH) and not na(rL) ? rH - rL : 0.0
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE A EVENTS
+// ═══════════════════════════════════════════════════════════════
+
+bool isPS    = close < close[1] and cpos() > 0.40 and volume > volRef * 1.2 and close == ta.lowest(close, 20)
+bool isSC    = isClim and close < close[1] and (high - low) > atr14 * 1.2 and cpos() > 0.35 and close == ta.lowest(close, 5)
+bool isAR_ev = rOn and close > close[1] and volume > volRef * 1.2
+bool isST    = rOn and not na(rL) and low <= rL * 1.02 and low >= rL * 0.97 and isLvol and close > open
+bool isPSY   = close > close[1] and cpos() < 0.60 and volume > volRef * 1.2 and close == ta.highest(close, 20)
+bool isBC    = isClim and close > close[1] and (high - low) > atr14 * 1.2 and cpos() < 0.65 and close == ta.highest(close, 5)
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE C — SPRING & UTAD (no-repaint two-stage confirmation)
+// ═══════════════════════════════════════════════════════════════
+
+var float spLow  = na
+var int   spBar  = na
+var bool  spPend = false
+var bool  spDone = false
+var float utHi   = na
+var int   utBar  = na
+var bool  utPend = false
+var bool  utDone = false
+
+float sm = sensMul()
+
+if rOn and not na(rL) and barstate.isconfirmed and not spDone
+    if low < rL * (1.0 - 0.0012 * sm) and close > rL and volume < volRef * (1.6 * sm)
+        spLow  := low
+        spBar  := bar_index
+        spPend := true
+
+if spPend and barstate.isconfirmed
+    int bss = bar_index - spBar
+    if bss >= 1 and bss <= 3
+        if low < spLow * 0.997 and volume > volRef * 1.4
+            spPend := false
+    if bss > 3
+        spDone := true
+        spPend := false
+
+if rOn and not na(rH) and barstate.isconfirmed and not utDone
+    if high > rH * (1.0 + 0.0012 * sm) and close < rH
+        utHi   := high
+        utBar  := bar_index
+        utPend := true
+        isAcc  := false
+
+if utPend and barstate.isconfirmed
+    int bsu = bar_index - utBar
+    if bsu >= 1 and bsu <= 3
+        if high > utHi * 1.002 and volume > volRef * 1.3
+            utPend := false
+    if bsu > 3
+        utDone := true
+        utPend := false
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE D — SOS · LPS · SOW · LPSY
+// ═══════════════════════════════════════════════════════════════
+
+var bool sosDone = false
+var int  sosBar  = na
+var bool lpsDone = false
+var int  lpsBar  = na
+var bool sowDone = false
+var int  sowBar  = na
+var bool lsyDone = false
+var int  lsyBar  = na
+var string lastEvt = "None"
+var int    lastBar = na
+
+if rOn and not na(rH) and barstate.isconfirmed and isAcc and not sosDone
+    if close > rH and isHvol and close > open
+        sosDone := true
+        sosBar  := bar_index
+        lastEvt := "SOS"
+        lastBar := bar_index
+
+if sosDone and not lpsDone and barstate.isconfirmed and isAcc
+    if close < close[1] and close > rH * 0.994 and isLvol
+        lpsDone := true
+        lpsBar  := bar_index
+        lastEvt := "LPS"
+        lastBar := bar_index
+
+if rOn and not na(rL) and barstate.isconfirmed and not isAcc and not sowDone
+    if close < rL and isHvol and close < open
+        sowDone := true
+        sowBar  := bar_index
+        lastEvt := "SOW"
+        lastBar := bar_index
+
+if sowDone and not lsyDone and barstate.isconfirmed and not isAcc
+    if close > close[1] and close < rL * 1.006 and isLvol
+        lsyDone := true
+        lsyBar  := bar_index
+        lastEvt := "LPSY"
+        lastBar := bar_index
+
+if barstate.isconfirmed
+    if isPS
+        lastEvt := "PS"
+        lastBar := bar_index
+    if isSC
+        lastEvt := "SC"
+        lastBar := bar_index
+    if isBC
+        lastEvt := "BC"
+        lastBar := bar_index
+    if spDone and bar_index == spBar
+        lastEvt := "SPRING"
+        lastBar := bar_index
+    if utDone and bar_index == utBar
+        lastEvt := "UTAD"
+        lastBar := bar_index
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE STATE
+// ═══════════════════════════════════════════════════════════════
+
+string curPhase = sosDone and lpsDone ? "PHASE E - MARKUP"   :
+                  sowDone and lsyDone ? "PHASE E - MARKDOWN" :
+                  sosDone             ? "PHASE D - SOS"      :
+                  sowDone             ? "PHASE D - SOW"      :
+                  spDone              ? "PHASE C - SPRING"   :
+                  utDone              ? "PHASE C - UTAD"     :
+                  rOn                 ? "PHASE A/B - RANGING": "SCANNING"
+
+// ═══════════════════════════════════════════════════════════════
+// SETUP QUALITY
+// ═══════════════════════════════════════════════════════════════
+
+var int qScore = 0
+qScore := 0
+if spDone or utDone
+    qScore := qScore + 3
+if isNS and isAcc and spDone
+    qScore := qScore + 2
+if isND and not isAcc and utDone
+    qScore := qScore + 2
+if sosDone or sowDone
+    qScore := qScore + 1
+if i_fii >= 30.0
+    qScore := qScore + 1
+if not i_results
+    qScore := qScore + 1
+if isExp() and i_expBoost
+    qScore := qScore + 1
+
+string squal = qScore >= 7 ? "A+" : qScore >= 5 ? "A" : qScore >= 3 ? "B" : "NO SETUP"
+
+// ═══════════════════════════════════════════════════════════════
+// WYCKOFF TARGETS
+// ═══════════════════════════════════════════════════════════════
+
+float tMin = isAcc ? rL + rWid * 0.75 : rH - rWid * 0.75
+float tMax = isAcc ? rL + rWid * 1.50 : rH - rWid * 1.50
+
+// ═══════════════════════════════════════════════════════════════
+// OPTIONS STRATEGY
+// ═══════════════════════════════════════════════════════════════
+
+float stF     = float(i_stStep)
+float atmStr  = math.round(close / stF) * stF
+float tgtStr  = math.round(tMin  / stF) * stF
+float otmDist = math.abs(tgtStr - atmStr)
+float otmStps = stF > 0.0 ? otmDist / stF : 1.0
+float otmPrem = i_atmP * math.pow(0.72, otmStps)
+
+string optDir = isAcc and (spDone or sosDone) ? "CE - BUY CALL" : not isAcc and (utDone or sowDone) ? "PE - BUY PUT" : "WAIT - confirm phase"
+float recStr  = isAcc ? math.round((close + otmDist) / stF) * stF : math.round((close - otmDist) / stF) * stF
+float optSL   = otmPrem * 0.5
+float optPnL  = otmPrem * 3.0 * i_lot
+
+string ivCtx  = i_iv < 12.0 ? "LOW - Good to buy" : i_iv < 18.0 ? "MODERATE - Normal" : i_iv < 25.0 ? "HIGH - Reduce 30%" : "EXTREME - Avoid"
+string expRec = i_dte <= 3 ? "Same week - small size" : i_dte <= 7 ? "Current week" : i_dte <= 15 ? "Next week preferred" : "Monthly - best for ranges"
+
+// ═══════════════════════════════════════════════════════════════
+// POSITION SIZER
+// ═══════════════════════════════════════════════════════════════
+
+float entryP = i_entry > 0.0 ? i_entry : close
+float stopP  = i_sl    > 0.0 ? i_sl    : (i_dir == "LONG" ? entryP * 0.985 : entryP * 1.015)
+float t1P    = i_t1    > 0.0 ? i_t1    : tMin
+float t2P    = i_t2    > 0.0 ? i_t2    : tMax
+
+float riskU  = math.max(math.abs(entryP - stopP), 0.01)
+float riskL  = riskU * i_lot
+float maxRsk = i_cap * (i_riskPct / 100.0)
+int   maxLts = math.max(1, int(math.floor(maxRsk / riskL)))
+
+float rrT1   = math.abs(t1P - entryP) / riskU
+float rrT2   = math.abs(t2P - entryP) / riskU
+float dirMul = i_dir == "LONG" ? 1.0 : -1.0
+float pnlT1  = (t1P - entryP) * dirMul * i_lot * maxLts
+float pnlT2  = (t2P - entryP) * dirMul * i_lot * maxLts
+float fees   = 80.0 + maxLts * 15.0
+float mrgn   = maxLts * i_mrgn
+float mrgnPct = i_cap > 0.0 ? mrgn / i_cap * 100.0 : 0.0
+float brkevn  = i_dir == "LONG" ? entryP + fees / (i_lot * maxLts) : entryP - fees / (i_lot * maxLts)
+
+string tGrade = rrT1 >= 3.0 and mrgnPct <= 60.0 ? "A+  EXECUTE" : rrT1 >= 2.0 and mrgnPct <= 60.0 ? "A   PROCEED" : rrT1 >= 1.5 ? "B   REDUCE" : "SKIP  R:R<1.5"
+
+// ═══════════════════════════════════════════════════════════════
+// DRAWING OBJECTS
+// ═══════════════════════════════════════════════════════════════
+
+var box   rBox   = na
+var line  eqLn   = na
+var line  tMinLn = na
+var line  tMaxLn = na
+var label tMinLb = na
+var label tMaxLb = na
+var line  mpLn   = na
+var label mpLb   = na
+var line  entLn  = na
+var line  slLn   = na
+var line  t1Ln   = na
+var line  t2Ln   = na
+
+if barstate.islast
+
+    if i_dBox and rOn and not na(rH) and not na(rL)
+        if not na(rBox)
+            box.delete(rBox)
+        rBox := box.new(left = bar_index - i_lb, top = rH, right = bar_index + 10, bottom = rL, bgcolor = isAcc ? C_ACC : C_DIST, border_color = isAcc ? C_ACCB : C_DISTB, border_width = 2, text = (isAcc ? "ACC " : "DIST ") + str.tostring(math.round(rWid, 0)) + " pts", text_color = isAcc ? C_ACCB : C_DISTB, text_size = size.small, text_halign = text.align_right, text_valign = text.align_top)
+
+    if i_dEquil and rOn and not na(equil)
+        if not na(eqLn)
+            line.delete(eqLn)
+        eqLn := line.new(x1 = bar_index - i_lb, y1 = equil, x2 = bar_index + 15, y2 = equil, color = C_EQUIL, style = line.style_dashed, width = 1)
+
+    if i_dTgts and rWid > 0.0
+        if not na(tMinLn)
+            line.delete(tMinLn)
+        if not na(tMaxLn)
+            line.delete(tMaxLn)
+        if not na(tMinLb)
+            label.delete(tMinLb)
+        if not na(tMaxLb)
+            label.delete(tMaxLb)
+        color tc1 = isAcc ? C_TMIN : C_DMIN
+        color tc2 = isAcc ? C_TMAX : C_DMAX
+        tMinLn := line.new(x1 = bar_index, y1 = tMin, x2 = bar_index + 40, y2 = tMin, color = tc1, style = line.style_dashed, width = 2)
+        tMaxLn := line.new(x1 = bar_index, y1 = tMax, x2 = bar_index + 40, y2 = tMax, color = tc2, style = line.style_dashed, width = 1)
+        tMinLb := label.new(x = bar_index + 40, y = tMin, text = "Min: " + str.tostring(math.round(tMin, 0)), color = tc1, textcolor = color.white, size = size.small, style = label.style_label_left)
+        tMaxLb := label.new(x = bar_index + 40, y = tMax, text = "Max: " + str.tostring(math.round(tMax, 0)), color = tc2, textcolor = color.white, size = size.small, style = label.style_label_left)
+
+    if i_maxPain > 0.0
+        if not na(mpLn)
+            line.delete(mpLn)
+        if not na(mpLb)
+            label.delete(mpLb)
+        mpLn := line.new(x1 = bar_index - 10, y1 = i_maxPain, x2 = bar_index + 35, y2 = i_maxPain, color = color.new(color.orange, 30), style = line.style_dotted, width = 2)
+        mpLb := label.new(x = bar_index + 35, y = i_maxPain, text = "MaxPain " + str.tostring(i_maxPain), color = color.new(color.orange, 30), textcolor = color.white, size = size.small, style = label.style_label_left)
+
+    if i_dPlan
+        if not na(entLn)
+            line.delete(entLn)
+        if not na(slLn)
+            line.delete(slLn)
+        if not na(t1Ln)
+            line.delete(t1Ln)
+        if not na(t2Ln)
+            line.delete(t2Ln)
+        entLn := line.new(x1 = bar_index - 3, y1 = entryP, x2 = bar_index + 20, y2 = entryP, color = color.new(color.white, 30), style = line.style_solid, width = 2)
+        slLn  := line.new(x1 = bar_index - 3, y1 = stopP,  x2 = bar_index + 20, y2 = stopP,  color = color.new(color.red,   30), style = line.style_solid, width = 2)
+        if t1P > 0.0
+            t1Ln := line.new(x1 = bar_index - 3, y1 = t1P, x2 = bar_index + 20, y2 = t1P, color = color.new(color.lime, 30), style = line.style_dashed, width = 2)
+        if t2P > 0.0
+            t2Ln := line.new(x1 = bar_index - 3, y1 = t2P, x2 = bar_index + 20, y2 = t2P, color = color.new(#00ff88,   30), style = line.style_dashed, width = 1)
+
+// ═══════════════════════════════════════════════════════════════
+// EVENT LABELS (barstate.isconfirmed — zero repainting)
+// ═══════════════════════════════════════════════════════════════
+
+if i_dLbls and barstate.isconfirmed
+    if isPS
+        label.new(x = bar_index, y = low, text = "PS", color = color.new(#4488ff,0), textcolor = color.black, size = size.small, style = label.style_label_up, yloc = yloc.belowbar, tooltip = "Preliminary Support — first demand in downtrend.")
+    if isSC
+        label.new(x = bar_index, y = low, text = "SC", color = color.new(#ff6600,0), textcolor = color.black, size = size.small, style = label.style_label_up, yloc = yloc.belowbar, tooltip = "Selling Climax — institutional accumulation begins. Range low defined.")
+    if isAR_ev and not sosDone
+        label.new(x = bar_index, y = high, text = "AR", color = color.new(#44bbff,0), textcolor = color.black, size = size.small, style = label.style_label_down, yloc = yloc.abovebar, tooltip = "Automatic Rally — range top defined. Phase B begins.")
+    if isST
+        label.new(x = bar_index, y = low, text = "ST", color = color.new(#8888ff,0), textcolor = color.black, size = size.small, style = label.style_label_up, yloc = yloc.belowbar, tooltip = "Secondary Test — low volume hold = supply drying up.")
+    if spDone and bar_index == spBar
+        label.new(x = bar_index, y = low, text = "SPRING", color = color.new(#00ff88,0), textcolor = color.black, size = size.small, style = label.style_label_up, yloc = yloc.belowbar, tooltip = "Spring — Phase C shakeout. Low volume recovery into range. Wait for test bar.")
+    if sosDone and bar_index == sosBar
+        label.new(x = bar_index, y = high, text = "SOS", color = color.new(#00dd44,0), textcolor = color.black, size = size.small, style = label.style_label_down, yloc = yloc.abovebar, tooltip = "Sign of Strength — Phase D. Volume breakout above range. LPS = entry.")
+    if lpsDone and bar_index == lpsBar
+        label.new(x = bar_index, y = low, text = "LPS", color = color.new(#88ffaa,0), textcolor = color.black, size = size.small, style = label.style_label_up, yloc = yloc.belowbar, tooltip = "Last Point of Support — low-risk long on low-volume pullback after SOS.")
+    if isPSY
+        label.new(x = bar_index, y = high, text = "PSY", color = color.new(#ff8844,0), textcolor = color.black, size = size.small, style = label.style_label_down, yloc = yloc.abovebar, tooltip = "Preliminary Supply — first institutional selling into uptrend.")
+    if isBC
+        label.new(x = bar_index, y = high, text = "BC", color = color.new(#ff4400,0), textcolor = color.black, size = size.small, style = label.style_label_down, yloc = yloc.abovebar, tooltip = "Buying Climax — distribution into retail FOMO. Close in lower half on 3-5x volume.")
+    if utDone and bar_index == utBar
+        label.new(x = bar_index, y = high, text = "UTAD", color = color.new(#ff2222,0), textcolor = color.black, size = size.small, style = label.style_label_down, yloc = yloc.abovebar, tooltip = "UTAD — false breakout above BC high. Retail trapped. Markdown imminent.")
+    if sowDone and bar_index == sowBar
+        label.new(x = bar_index, y = low, text = "SOW", color = color.new(#dd0000,0), textcolor = color.black, size = size.small, style = label.style_label_up, yloc = yloc.belowbar, tooltip = "Sign of Weakness — Phase D. Volume break below range.")
+    if lsyDone and bar_index == lsyBar
+        label.new(x = bar_index, y = high, text = "LPSY", color = color.new(#ff8888,0), textcolor = color.black, size = size.small, style = label.style_label_down, yloc = yloc.abovebar, tooltip = "LPSY — weak rally on low volume after SOW. Short entry.")
+
+// ═══════════════════════════════════════════════════════════════
+// VOLUME DOTS + BACKGROUND HIGHLIGHTS
+// ═══════════════════════════════════════════════════════════════
+
+if i_dVol and barstate.isconfirmed
+    if isND
+        label.new(x = bar_index, y = low,  text = ".", color = color.new(color.yellow,0), textcolor = color.yellow, size = size.tiny, style = label.style_none, yloc = yloc.belowbar)
+    if isNS
+        label.new(x = bar_index, y = high, text = ".", color = color.new(color.yellow,0), textcolor = color.yellow, size = size.tiny, style = label.style_none, yloc = yloc.abovebar)
+
+bgcolor(i_dVol  and isAbsorb                  ? color.new(#aa44ff, 92) : na, title = "Absorption Bar")
+bgcolor(i_dVol  and (isSC or isBC)            ? color.new(#ff6600, 88) : na, title = "SC or BC Bar")
+bgcolor(spDone  and bar_index == spBar        ? color.new(#00ff88, 85) : na, title = "Spring Bar")
+bgcolor(utDone  and bar_index == utBar        ? color.new(#ff4444, 85) : na, title = "UTAD Bar")
+bgcolor(isExp() and i_expBoost                ? color.new(#ff9900, 97) : na, title = "Expiry Day")
+
+// ═══════════════════════════════════════════════════════════════
+// PLOTS
+// ═══════════════════════════════════════════════════════════════
+
+plot(rOn ? rH : na, "Range High",  color = color.new(color.blue, 70), linewidth = 1)
+plot(rOn ? rL : na, "Range Low",   color = color.new(color.blue, 70), linewidth = 1)
+plot(i_dEquil and rOn ? equil : na, "Equilibrium", color = C_EQUIL,  linewidth = 1)
+
+// ═══════════════════════════════════════════════════════════════
+// WYCKOFF DASHBOARD (bottom-right)
+// ═══════════════════════════════════════════════════════════════
+
+if i_dDash and barstate.islast
+    var table d = table.new(position.bottom_right, 2, 12, bgcolor = color.new(color.black, 8), border_color = color.new(color.gray, 65), border_width = 1, frame_color = color.new(color.gray, 45), frame_width = 1)
+
+    table.cell(d, 0, 0, "WYCKOFF PRO",     text_color = color.white,  text_size = size.small, bgcolor = color.new(color.navy, 15), text_halign = text.align_center)
+    table.cell(d, 1, 0, syminfo.ticker,    text_color = color.yellow, text_size = size.small, bgcolor = color.new(color.navy, 15), text_halign = text.align_center)
+
+    color phC = str.contains(curPhase,"MARKUP") ? color.lime : str.contains(curPhase,"MARKDOWN") ? color.red : str.contains(curPhase,"PHASE C") ? color.orange : str.contains(curPhase,"PHASE D") ? color.teal : color.gray
+    table.cell(d, 0, 1,  "Phase",       text_color = color.silver, text_size = size.small)
+    table.cell(d, 1, 1,  curPhase,      text_color = phC,          text_size = size.small, text_halign = text.align_center)
+
+    table.cell(d, 0, 2,  "Spring",      text_color = color.silver, text_size = size.small)
+    table.cell(d, 1, 2,  spDone ? "YES" : "NO", text_color = spDone ? color.lime : color.gray, text_size = size.small, text_halign = text.align_center)
+
+    table.cell(d, 0, 3,  "UTAD",        text_color = color.silver, text_size = size.small)
+    table.cell(d, 1, 3,  utDone ? "YES" : "NO", text_color = utDone ? color.red : color.gray, text_size = size.small, text_halign = text.align_center)
+
+    string bago = not na(lastBar) ? str.tostring(bar_index - lastBar) + "b ago" : "---"
+    table.cell(d, 0, 4,  "Last Event",  text_color = color.silver, text_size = size.small)
+    table.cell(d, 1, 4,  lastEvt + " " + bago, text_color = color.white, text_size = size.small, text_halign = text.align_center)
+
+    table.cell(d, 0, 5,  "Range",       text_color = color.silver, text_size = size.small)
+    table.cell(d, 1, 5,  rOn ? str.tostring(math.round(rWid, 0)) + " pts" : "No Range", text_color = color.white, text_size = size.small, text_halign = text.align_center)
+
+    table.cell(d, 0, 6,  "Min Target",  text_color = color.silver, text_size = size.small)
+    table.cell(d, 1, 6,  rWid > 0.0 ? str.tostring(math.round(tMin, 0)) : "---", text_color = isAcc ? color.lime : color.red, text_size = size.small, text_halign = text.align_center)
+
+    table.cell(d, 0, 7,  "Max Target",  text_color = color.silver, text_size = size.small)
+    table.cell(d, 1, 7,  rWid > 0.0 ? str.tostring(math.round(tMax, 0)) : "---", text_color = isAcc ? color.lime : color.red, text_size = size.small, text_halign = text.align_center)
+
+    color vcC = volState == "CLIMACTIC" ? color.orange : volState == "NO DEMAND" ? color.yellow : volState == "NO SUPPLY" ? color.yellow : volState == "ABSORPTION" ? color.purple : color.gray
+    table.cell(d, 0, 8,  "Volume",      text_color = color.silver, text_size = size.small)
+    table.cell(d, 1, 8,  volState,      text_color = vcC,          text_size = size.small, text_halign = text.align_center)
+
+    string exTxt = isTue() ? "TUESDAY Nifty Expiry" : isWed() ? "WEDNESDAY BNF Expiry" : "Non-Expiry"
+    table.cell(d, 0, 9,  "Expiry",      text_color = color.silver, text_size = size.small)
+    table.cell(d, 1, 9,  exTxt,         text_color = isExp() ? color.orange : color.gray, text_size = size.small, text_halign = text.align_center)
+
+    color sqC = squal == "A+" ? color.lime : squal == "A" ? color.green : squal == "B" ? color.yellow : color.gray
+    table.cell(d, 0, 10, "Quality",     text_color = color.silver, text_size = size.small)
+    table.cell(d, 1, 10, squal,         text_color = sqC, text_size = size.small, text_halign = text.align_center, bgcolor = squal == "A+" ? color.new(color.lime, 88) : color.new(color.black, 0))
+
+    color fiC = i_fii >= 40.0 ? color.lime : i_fii >= 20.0 ? color.yellow : color.red
+    string fiT = i_fii >= 40.0 ? "HIGH" : i_fii >= 20.0 ? "MID" : "LOW - wider stops"
+    table.cell(d, 0, 11, "FII Tier",    text_color = color.silver, text_size = size.small)
+    table.cell(d, 1, 11, fiT,           text_color = fiC, text_size = size.small, text_halign = text.align_center)
+
+// ═══════════════════════════════════════════════════════════════
+// TRADE PLANNER (top-right)
+// ═══════════════════════════════════════════════════════════════
+
+if i_dPlan and barstate.islast
+    var table p = table.new(position.top_right, 2, 20, bgcolor = color.new(color.black, 8), border_color = color.new(color.gray, 65), border_width = 1, frame_color = color.new(color.gray, 45), frame_width = 1)
+
+    color dirC = i_dir == "LONG" ? color.new(color.lime, 60) : color.new(color.red, 60)
+    table.cell(p, 0, 0, "TRADE PLAN",  text_color = color.white,  text_size = size.small, bgcolor = dirC, text_halign = text.align_center)
+    table.cell(p, 1, 0, i_dir,         text_color = color.yellow, text_size = size.small, bgcolor = dirC, text_halign = text.align_center)
+
+    table.cell(p, 0, 1,  "Entry",          text_color = color.silver, text_size = size.small)
+    table.cell(p, 1,  1, str.tostring(math.round(entryP, 1)), text_color = color.white,  text_size = size.small, text_halign = text.align_right)
+
+    table.cell(p, 0, 2,  "Stop",           text_color = color.silver, text_size = size.small)
+    table.cell(p, 1,  2, str.tostring(math.round(stopP, 1)) + "  (" + str.tostring(math.round(riskU, 1)) + "pts)", text_color = color.red, text_size = size.small, text_halign = text.align_right)
+
+    table.cell(p, 0, 3,  "Breakeven",      text_color = color.silver, text_size = size.small)
+    table.cell(p, 1,  3, str.tostring(math.round(brkevn, 1)), text_color = color.gray, text_size = size.small, text_halign = text.align_right)
+
+    table.cell(p, 0, 4,  "T1  R:" + str.tostring(math.round(rrT1, 1)) + "x", text_color = color.silver, text_size = size.small)
+    table.cell(p, 1,  4, str.tostring(math.round(t1P, 1)), text_color = color.lime,  text_size = size.small, text_halign = text.align_right)
+
+    table.cell(p, 0, 5,  "T2  R:" + str.tostring(math.round(rrT2, 1)) + "x", text_color = color.silver, text_size = size.small)
+    table.cell(p, 1,  5, str.tostring(math.round(t2P, 1)), text_color = color.green, text_size = size.small, text_halign = text.align_right)
+
+    table.cell(p, 0, 6,  "Max Lots",       text_color = color.silver, text_size = size.small)
+    table.cell(p, 1,  6, str.tostring(maxLts) + "L x " + str.tostring(i_lot), text_color = color.white, text_size = size.small, text_halign = text.align_right)
+
+    table.cell(p, 0, 7,  "Margin (" + str.tostring(math.round(mrgnPct, 0)) + "%)", text_color = color.silver, text_size = size.small)
+    table.cell(p, 1,  7, "Rs" + str.tostring(math.round(mrgn / 100000.0, 1)) + "L", text_color = mrgnPct > 60.0 ? color.red : color.white, text_size = size.small, text_halign = text.align_right)
+
+    table.cell(p, 0, 8,  "P&L at T1",      text_color = color.silver, text_size = size.small)
+    table.cell(p, 1,  8, "Rs" + str.tostring(math.round(pnlT1 - fees, 0)), text_color = color.lime,  text_size = size.small, text_halign = text.align_right)
+
+    table.cell(p, 0, 9,  "P&L at T2",      text_color = color.silver, text_size = size.small)
+    table.cell(p, 1,  9, "Rs" + str.tostring(math.round(pnlT2 - fees, 0)), text_color = color.green, text_size = size.small, text_halign = text.align_right)
+
+    color tgC = str.contains(tGrade,"A+") ? color.lime : str.contains(tGrade,"A ") ? color.green : str.contains(tGrade,"B ") ? color.yellow : color.red
+    table.cell(p, 0, 10, "Grade",           text_color = color.silver, text_size = size.small)
+    table.cell(p, 1, 10, tGrade,            text_color = tgC, text_size = size.small, text_halign = text.align_center, bgcolor = str.contains(tGrade,"A+") ? color.new(color.lime, 88) : color.new(color.black, 0))
+
+    table.cell(p, 0, 11, "-- OPTIONS --",   text_color = color.gray,   text_size = size.small, text_halign = text.align_center)
+    table.cell(p, 1, 11, "",                text_color = color.gray,   text_size = size.small)
+
+    color odC = str.contains(optDir,"CE") ? color.lime : str.contains(optDir,"PE") ? color.red : color.gray
+    table.cell(p, 0, 12, "Strategy",        text_color = color.silver, text_size = size.small)
+    table.cell(p, 1, 12, optDir,            text_color = odC, text_size = size.small, text_halign = text.align_center, bgcolor = odC == color.lime ? color.new(color.lime, 90) : odC == color.red ? color.new(color.red, 90) : color.new(color.black, 0))
+
+    string recStrTxt = str.contains(optDir,"CE") ? str.tostring(int(recStr)) + " CE" : str.contains(optDir,"PE") ? str.tostring(int(recStr)) + " PE" : "---"
+    table.cell(p, 0, 13, "Strike",          text_color = color.silver, text_size = size.small)
+    table.cell(p, 1, 13, recStrTxt,         text_color = color.white,  text_size = size.small, text_halign = text.align_right)
+
+    table.cell(p, 0, 14, "Est Premium",     text_color = color.silver, text_size = size.small)
+    table.cell(p, 1, 14, "Rs" + str.tostring(math.round(otmPrem, 1)), text_color = color.yellow, text_size = size.small, text_halign = text.align_right)
+
+    table.cell(p, 0, 15, "Option SL",       text_color = color.silver, text_size = size.small)
+    table.cell(p, 1, 15, "Exit < Rs" + str.tostring(math.round(optSL, 1)), text_color = color.red, text_size = size.small, text_halign = text.align_right)
+
+    table.cell(p, 0, 16, "Est P&L (3x)",    text_color = color.silver, text_size = size.small)
+    table.cell(p, 1, 16, "Rs" + str.tostring(math.round(optPnL, 0)), text_color = color.lime, text_size = size.small, text_halign = text.align_right)
+
+    color ivcC = i_iv < 12.0 ? color.lime : i_iv < 18.0 ? color.yellow : color.red
+    table.cell(p, 0, 17, "IV Context",      text_color = color.silver, text_size = size.small)
+    table.cell(p, 1, 17, ivCtx,             text_color = ivcC, text_size = size.small, text_halign = text.align_right)
+
+    table.cell(p, 0, 18, "DTE / Rec",       text_color = color.silver, text_size = size.small)
+    table.cell(p, 1, 18, str.tostring(i_dte) + "d  " + expRec, text_color = i_dte <= 3 ? color.red : color.lime, text_size = size.small, text_halign = text.align_right)
+
+    table.cell(p, 0, 19, "Max Pain",        text_color = color.silver, text_size = size.small)
+    table.cell(p, 1, 19, i_maxPain > 0.0 ? str.tostring(i_maxPain) : "Not set", text_color = i_maxPain > 0.0 ? color.orange : color.gray, text_size = size.small, text_halign = text.align_right)
+
+// ═══════════════════════════════════════════════════════════════
+// ALERTS
+// ═══════════════════════════════════════════════════════════════
+
+alertcondition(i_aSpring and spDone and bar_index == spBar,  title = "Wyckoff Spring", message = "Spring on {{ticker}} — Long Setup | Phase C shakeout | Wait for test bar")
+alertcondition(i_aSpring and utDone and bar_index == utBar,  title = "Wyckoff UTAD",   message = "UTAD on {{ticker}} — Short Setup | False breakout confirmed | Enter on close below BC high")
+alertcondition(i_aSOS    and sosDone and bar_index == sosBar, title = "Wyckoff SOS",   message = "SOS on {{ticker}} — Markup Begins | Phase D active | Watch for LPS entry")
+alertcondition(i_aSOS    and sowDone and bar_index == sowBar, title = "Wyckoff SOW",   message = "SOW on {{ticker}} — Markdown Begins | Phase D active | Watch for LPSY short")
+alertcondition(i_aLPS    and lpsDone and bar_index == lpsBar, title = "Wyckoff LPS",   message = "LPS on {{ticker}} — Long Entry | Low-volume pullback after SOS | Stop below LPS low")
+alertcondition(i_aLPS    and lsyDone and bar_index == lsyBar, title = "Wyckoff LPSY",  message = "LPSY on {{ticker}} — Short Entry | Weak rally after SOW | Stop above LPSY high")
+alertcondition(i_aExp    and isTue() and spDone and bar_index == spBar, title = "Tuesday Spring", message = "Tuesday Spring on {{ticker}} — HIGH PROBABILITY | Operator + max pain aligned")
+
+if i_aSpring and spDone and bar_index == spBar
+    alert("Spring on " + syminfo.ticker + " — Long Setup", alert.freq_once_per_bar_close)
+if i_aSpring and utDone and bar_index == utBar
+    alert("UTAD on "   + syminfo.ticker + " — Short Setup", alert.freq_once_per_bar_close)
+if i_aSOS and sosDone and bar_index == sosBar
+    alert("SOS on "    + syminfo.ticker + " — Markup", alert.freq_once_per_bar_close)
+if i_aSOS and sowDone and bar_index == sowBar
+    alert("SOW on "    + syminfo.ticker + " — Markdown", alert.freq_once_per_bar_close)
+if i_aLPS and lpsDone and bar_index == lpsBar
+    alert("LPS on "    + syminfo.ticker + " — Long Entry", alert.freq_once_per_bar_close)
+if i_aLPS and lsyDone and bar_index == lsyBar
+    alert("LPSY on "   + syminfo.ticker + " — Short Entry", alert.freq_once_per_bar_close)

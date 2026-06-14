@@ -1,0 +1,863 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0
+// Wyckoff Institutional Phase Detector — Nifty & Bank Nifty Edition
+// Modernized Wyckoff Methodology | Pine Script v6
+
+//@version=6
+indicator(title = "Wyckoff Institutional Phase Detector [Nifty/BankNifty]",
+     shorttitle = "Wyckoff-IPD",
+     overlay = true,
+     max_boxes_count = 50,
+     max_lines_count = 100,
+     max_labels_count = 200,
+     max_bars_back = 500)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INPUT GROUPS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// — Detection Settings —
+var GRP_DETECT = "Detection Settings"
+i_volClimaxMult   = input.float(2.5,  "Volume Climax Multiplier",  minval = 1.5, maxval = 5.0, step = 0.1,  group = GRP_DETECT, tooltip = "Volume X times the 20-bar average to qualify as climactic")
+i_rangeLookback   = input.int(50,     "Range Lookback Period",      minval = 20,  maxval = 200,              group = GRP_DETECT, tooltip = "Bars to look back when detecting the trading range")
+i_springSens      = input.string("Medium", "Spring Sensitivity",   options = ["Low", "Medium", "High"],     group = GRP_DETECT, tooltip = "Low = fewer signals, High = more signals (more false positives)")
+i_expiryBoost     = input.bool(true,  "Expiry Day Sensitivity Boost",                                       group = GRP_DETECT, tooltip = "Increases Spring/UTAD sensitivity 20% on Tuesday (Nifty) and Wednesday (BankNifty)")
+
+// — Display Settings —
+var GRP_DISPLAY = "Display Settings"
+i_showLabels      = input.bool(true,  "Show Event Labels",          group = GRP_DISPLAY)
+i_showRangeBox    = input.bool(true,  "Show Range Box",             group = GRP_DISPLAY)
+i_showTargets     = input.bool(true,  "Show Price Targets",         group = GRP_DISPLAY)
+i_showDashboard   = input.bool(true,  "Show Dashboard",             group = GRP_DISPLAY)
+i_showVolSignals  = input.bool(true,  "Show Volume Signals",        group = GRP_DISPLAY)
+i_showEquilibrium = input.bool(true,  "Show Equilibrium Line",      group = GRP_DISPLAY)
+
+// — Alert Settings —
+var GRP_ALERTS = "Alert Settings"
+i_alertSpring     = input.bool(true,  "Enable Spring Alert",        group = GRP_ALERTS)
+i_alertUTAD       = input.bool(true,  "Enable UTAD Alert",          group = GRP_ALERTS)
+i_alertSOSSow     = input.bool(true,  "Enable SOS/SOW Alerts",      group = GRP_ALERTS)
+i_alertLPS        = input.bool(true,  "Enable LPS/LPSY Alerts",     group = GRP_ALERTS)
+i_alertExpiry     = input.bool(true,  "Enable Tuesday Expiry Alert", group = GRP_ALERTS)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONSTANTS & COLORS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+COLOR_SPRING       = color.new(#00ff88, 0)
+COLOR_SPRING_FILL  = color.new(#00ff88, 85)
+COLOR_UTAD         = color.new(#ff4444, 0)
+COLOR_UTAD_FILL    = color.new(#ff4444, 85)
+COLOR_ACC_BOX      = color.new(#4a9eff, 90)
+COLOR_DIST_BOX     = color.new(#ff6b6b, 90)
+COLOR_ACC_BORDER   = color.new(#4a9eff, 40)
+COLOR_DIST_BORDER  = color.new(#ff6b6b, 40)
+COLOR_SC_BC        = color.new(#ff9500, 0)
+COLOR_NO_DEMAND    = color.new(#ffff00, 0)
+COLOR_NO_SUPPLY    = color.new(#ffff00, 0)
+COLOR_ABSORB       = color.new(#aa44ff, 0)
+COLOR_SOS_BAR      = color.new(#00cc44, 0)
+COLOR_SOW_BAR      = color.new(#cc2222, 0)
+COLOR_EQUILIBRIUM  = color.new(#888888, 60)
+COLOR_TARGET_MIN   = color.new(#00cc44, 20)
+COLOR_TARGET_MAX   = color.new(#00ff88, 20)
+COLOR_DIST_MIN     = color.new(#cc2222, 20)
+COLOR_DIST_MAX     = color.new(#ff4444, 20)
+COLOR_EXPIRY       = color.new(#ff9900, 0)
+COLOR_LABEL_PS     = color.new(#4488ff, 0)
+COLOR_LABEL_SC     = color.new(#ff6600, 0)
+COLOR_LABEL_AR     = color.new(#44bbff, 0)
+COLOR_LABEL_ST     = color.new(#8888ff, 0)
+COLOR_LABEL_SPRING = color.new(#00ff88, 0)
+COLOR_LABEL_SOS    = color.new(#00dd44, 0)
+COLOR_LABEL_LPS    = color.new(#88ffaa, 0)
+COLOR_LABEL_BU     = color.new(#44ffdd, 0)
+COLOR_LABEL_PSY    = color.new(#ff8844, 0)
+COLOR_LABEL_BC     = color.new(#ff4400, 0)
+COLOR_LABEL_UTAD   = color.new(#ff2222, 0)
+COLOR_LABEL_SOW    = color.new(#dd0000, 0)
+COLOR_LABEL_LPSY   = color.new(#ff8888, 0)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PERSISTENT STATE VARIABLES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+var float  rangeHigh      = na
+var float  rangeLow       = na
+var int    rangeHighBar   = na
+var int    rangeLowBar    = na
+var bool   rangeActive    = false
+var bool   isAccumulation = true   // true = accumulation candidate, false = distribution
+
+var float  scLow          = na
+var float  arHigh         = na
+var float  arLow          = na
+var float  stLow          = na
+var float  bcHigh         = na
+var float  psyHigh        = na
+
+var bool   springDetected = false
+var bool   utadDetected   = false
+var bool   sosDetected    = false
+var bool   sowDetected    = false
+var bool   lpsDetected    = false
+var bool   lpsyDetected   = false
+
+var int    springBar      = na
+var int    utadBar        = na
+var int    sosBar         = na
+var int    sowBar         = na
+var int    lastEventBar   = na
+var string lastEventName  = "None"
+var string currentPhase   = "SCANNING"
+var string setupQuality   = "NO SETUP"
+var string volCondition   = "NORMAL"
+
+var box    rangeBox       = na
+var line   equiLine       = na
+var line   targetMinLine  = na
+var line   targetMaxLine  = na
+var label  targetMinLbl   = na
+var label  targetMaxLbl   = na
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// UTILITY FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// True range of current bar
+trueRange() =>
+    math.max(high - low, math.abs(high - close[1]), math.abs(low - close[1]))
+
+// Volume moving average
+volMA(len) =>
+    ta.sma(volume, len)
+
+// ATR
+atrVal(len) =>
+    ta.atr(len)
+
+// Spread as % of price
+spread() =>
+    (high - low) / close * 100.0
+
+// Is bar a strong up-bar?
+isStrongUp(minSpreadPct) =>
+    close > open and (high - low) / close * 100.0 >= minSpreadPct and close >= open + (high - open) * 0.6
+
+// Is bar a strong down-bar?
+isStrongDown(minSpreadPct) =>
+    close < open and (high - low) / close * 100.0 >= minSpreadPct and close <= open - (close - low) * 0.6
+
+// Close position in the bar range (0.0 = at low, 1.0 = at high)
+closePosition() =>
+    barRng = high - low
+    barRng > 0.0 ? (close - low) / barRng : 0.5
+
+// Expiry day detection — Tuesday for Nifty, Wednesday for Bank Nifty
+isExpiryDay() =>
+    dayofweek == dayofweek.tuesday or dayofweek == dayofweek.wednesday
+
+isTuesdayExpiry() =>
+    dayofweek == dayofweek.tuesday
+
+// Sensitivity threshold based on input
+sensMult() =>
+    base = i_springSens == "Low" ? 1.2 : i_springSens == "High" ? 0.8 : 1.0
+    expiryAdj = i_expiryBoost and isExpiryDay() ? base * 0.8 : base
+    expiryAdj
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VOLUME ANALYSIS ENGINE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+vol20     = volMA(20)
+vol50     = volMA(50)
+vol10     = volMA(10)
+volRef    = isExpiryDay() ? vol50 : vol20
+
+isClimatic     = volume > volRef * i_volClimaxMult
+isHighVol      = volume > volRef * 1.5
+isLowVol       = volume < volRef * 0.8
+isVeryLowVol   = volume < volRef * 0.6
+
+// No Demand: up-bar, low volume, narrow close
+isNoDemand     = close > close[1] and volume < volume[1] and volume < volume[2] and
+                 (high - low) < ta.atr(14) * 0.7 and closePosition() < 0.6
+
+// No Supply: down-bar, low volume, closes off lows
+isNoSupply     = close < close[1] and volume < volume[1] and volume < volume[2] and
+                 (high - low) < ta.atr(14) * 0.7 and closePosition() > 0.4
+
+// Absorption: wide spread, high volume, price goes nowhere (effort ≠ result)
+isAbsorption   = (high - low) > ta.atr(14) * 1.3 and
+                 volume > volRef * 1.8 and
+                 math.abs(close - open) < (high - low) * 0.4
+
+// Volume condition for dashboard
+if isClimatic
+    volCondition := "CLIMACTIC"
+else if isNoDemand
+    volCondition := "NO DEMAND"
+else if isNoSupply
+    volCondition := "NO SUPPLY"
+else
+    volCondition := "NORMAL"
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TRADING RANGE DETECTION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Detect range: find highest high and lowest low over lookback, check if price is ranging
+lookbackHigh = ta.highest(high, i_rangeLookback)
+lookbackLow  = ta.lowest(low,  i_rangeLookback)
+rangeWidth   = lookbackHigh - lookbackLow
+
+// Range is "active" if ATR is compressed relative to recent range
+atr14        = atrVal(14)
+atr50        = atrVal(50)
+isRanging    = atr14 < atr50 * 1.3 and rangeWidth < atr50 * 12.0
+
+if isRanging and not rangeActive
+    rangeHigh    := lookbackHigh
+    rangeLow     := lookbackLow
+    rangeActive  := true
+
+if rangeActive
+    // Expand range if price sets a new boundary
+    if high > rangeHigh
+        rangeHigh    := high
+        rangeHighBar := bar_index
+    if low < rangeLow
+        rangeLow    := low
+        rangeLowBar := bar_index
+
+// Determine accumulation vs distribution candidate
+// Compare volume on down-tests vs up-tests within range
+var float downTestVolAvg = 0.0
+var float upTestVolAvg   = 0.0
+var int   downTestCount  = 0
+var int   upTestCount    = 0
+
+if rangeActive
+    midRange = (rangeHigh + rangeLow) / 2.0
+    if low < midRange
+        downTestVolAvg := (downTestVolAvg * downTestCount + volume) / (downTestCount + 1)
+        downTestCount  := downTestCount + 1
+    if high > midRange
+        upTestVolAvg   := (upTestVolAvg * upTestCount + volume) / (upTestCount + 1)
+        upTestCount    := upTestCount + 1
+
+// Lower volume on down-tests = accumulation candidate
+if downTestCount > 3 and upTestCount > 3
+    isAccumulation := downTestVolAvg < upTestVolAvg
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PHASE A EVENT DETECTION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// --- ACCUMULATION PHASE A ---
+
+// Preliminary Support (PS): First strong close-off-lows in downtrend on rising volume
+isPsBar = isStrongDown(0.8) and closePosition() > 0.4 and volume > vol20 * 1.2 and
+          close < ta.lowest(close, 20)[1]
+
+// Selling Climax (SC): Widest down-bar, climactic volume, close in middle or upper half
+isScBar = isClimatic and close < close[1] and spread() > ta.atr(14) / close * 80.0 and
+          closePosition() > 0.35 and close == ta.lowest(close, 5)
+
+// Automatic Rally (AR): Strong up after SC
+isArBar = rangeActive and close > close[1] and volume > vol20 * 1.3 and
+          not na(scLow) and low > scLow * 0.995
+
+// Secondary Test (ST): Return to SC area on LOW volume
+isStBar = rangeActive and not na(scLow) and low <= scLow * 1.02 and
+          low >= scLow * 0.97 and isLowVol and close > open
+
+// --- DISTRIBUTION PHASE A ---
+
+// Preliminary Supply (PSY): First pause in uptrend, volume rising but price slowing
+isPsyBar = isStrongUp(0.8) and closePosition() < 0.6 and volume > vol20 * 1.2 and
+           close > ta.highest(close, 20)[1]
+
+// Buying Climax (BC): Wide up-bar, climactic volume, close in lower half
+isBcBar  = isClimatic and close > close[1] and spread() > ta.atr(14) / close * 80.0 and
+           closePosition() < 0.65 and close == ta.highest(close, 5)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PHASE C — SPRING AND UTAD DETECTION (NO REPAINT)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Spring: price penetrates range low with low/moderate volume, recovers into range
+// Only confirm after bar close (barstate.isconfirmed)
+var float  potentialSpringLow = na
+var int    potentialSpringBar = na
+var bool   springPending      = false
+
+sensitivityAdj = sensMult()
+
+// Detect potential spring (bar closing back above range low after penetrating it)
+if rangeActive and not na(rangeLow) and barstate.isconfirmed
+    penetratedLow = low < rangeLow * (1.0 - 0.001 * sensitivityAdj)
+    recoveredIntoRange = close > rangeLow
+    lowVolumeSpring = volume < volRef * (1.5 * sensitivityAdj)
+    if penetratedLow and recoveredIntoRange and lowVolumeSpring and not springDetected
+        potentialSpringLow := low
+        potentialSpringBar := bar_index
+        springPending := true
+
+// Confirm spring: next 1-3 bars must NOT go below spring low significantly
+if springPending and barstate.isconfirmed
+    barsSinceSpring = bar_index - potentialSpringBar
+    if barsSinceSpring <= 3
+        if low < potentialSpringLow * 0.998 and volume > volRef * 1.5
+            springPending := false  // Spring failed — breakdown
+    else
+        if not na(potentialSpringLow)
+            springDetected := true
+            springBar      := potentialSpringBar
+            lastEventBar   := bar_index
+            lastEventName  := "SPRING"
+            currentPhase   := "PHASE C — SPRING"
+            springPending  := false
+
+// UTAD: price penetrates range high with high volume initially, then closes back in range
+var float  potentialUtadHigh = na
+var int    potentialUtadBar  = na
+var bool   utadPending       = false
+
+if rangeActive and not na(rangeHigh) and barstate.isconfirmed
+    penetratedHigh = high > rangeHigh * (1.0 + 0.001 * sensitivityAdj)
+    closedBackInRange = close < rangeHigh
+    if penetratedHigh and closedBackInRange and not utadDetected
+        potentialUtadHigh := high
+        potentialUtadBar  := bar_index
+        utadPending := true
+
+if utadPending and barstate.isconfirmed
+    barsSinceUtad = bar_index - potentialUtadBar
+    if barsSinceUtad <= 3
+        if high > potentialUtadHigh * 1.002 and volume > volRef * 1.3
+            utadPending := false  // UTAD failed — real breakout
+    else
+        if not na(potentialUtadHigh)
+            utadDetected   := true
+            utadBar        := potentialUtadBar
+            lastEventBar   := bar_index
+            lastEventName  := "UTAD"
+            currentPhase   := "PHASE C — UTAD"
+            utadPending    := false
+            isAccumulation := false
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PHASE D — SOS AND LPS DETECTION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Sign of Strength (SOS): strong up-bar breaking above AR high / range high on volume
+isSosCandidate = barstate.isconfirmed and rangeActive and
+                 close > rangeHigh and volume > volRef * 1.5 and
+                 isStrongUp(0.6) and isAccumulation
+
+if isSosCandidate and not sosDetected
+    sosDetected  := true
+    sosBar       := bar_index
+    lastEventBar := bar_index
+    lastEventName := "SOS"
+    currentPhase := "PHASE D — SOS"
+
+// LPS: pullback after SOS on low volume, holds above range top
+isLpsCandidate = barstate.isconfirmed and sosDetected and
+                 close > rangeHigh * 0.995 and  // holds near or above range top
+                 close < close[1] and           // pullback bar
+                 isLowVol and                   // low volume on pullback
+                 isAccumulation
+
+if isLpsCandidate and not lpsDetected
+    lpsDetected  := true
+    lastEventBar := bar_index
+    lastEventName := "LPS"
+    currentPhase := "PHASE D — LPS"
+
+// Sign of Weakness (SOW): strong down-bar breaking below AR low / range low on volume
+isSowCandidate = barstate.isconfirmed and rangeActive and
+                 close < rangeLow and volume > volRef * 1.5 and
+                 isStrongDown(0.6) and not isAccumulation
+
+if isSowCandidate and not sowDetected
+    sowDetected  := true
+    sowBar       := bar_index
+    lastEventBar := bar_index
+    lastEventName := "SOW"
+    currentPhase := "PHASE D — SOW"
+
+// LPSY: weak rally after SOW on low volume
+isLpsyCandidate = barstate.isconfirmed and sowDetected and
+                  close < rangeLow * 1.005 and
+                  close > close[1] and
+                  isLowVol and
+                  not isAccumulation
+
+if isLpsyCandidate and not lpsyDetected
+    lpsyDetected := true
+    lastEventBar := bar_index
+    lastEventName := "LPSY"
+    currentPhase := "PHASE D — LPSY"
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PHASE PROGRESSION & SETUP QUALITY
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Update current phase based on confirmed events
+if sosDetected and lpsDetected
+    currentPhase := "PHASE E — MARKUP"
+else if sowDetected and lpsyDetected
+    currentPhase := "PHASE E — MARKDOWN"
+else if not rangeActive
+    currentPhase := "SCANNING"
+
+// Setup quality scoring
+var int qualityScore = 0
+
+if springDetected or utadDetected
+    qualityScore := qualityScore + 3
+if (springDetected and isAccumulation) or (utadDetected and not isAccumulation)
+    qualityScore := qualityScore + 1
+if isNoSupply and isAccumulation and springDetected
+    qualityScore := qualityScore + 2
+if isNoDemand and not isAccumulation and utadDetected
+    qualityScore := qualityScore + 2
+if isExpiryDay() and i_expiryBoost
+    qualityScore := qualityScore + 1
+if sosDetected or sowDetected
+    qualityScore := qualityScore + 1
+
+setupQuality := qualityScore >= 6 ? "A+" :
+                qualityScore >= 4 ? "A"  :
+                qualityScore >= 2 ? "B"  : "NO SETUP"
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CAUSE & EFFECT PRICE TARGET CALCULATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Range width × ATR-based target projection
+rangeWidthPoints = rangeActive and not na(rangeHigh) and not na(rangeLow) ?
+                   rangeHigh - rangeLow : 0.0
+
+targetMin = isAccumulation ? rangeLow  + rangeWidthPoints * 0.75 :
+                              rangeHigh - rangeWidthPoints * 0.75
+targetMax = isAccumulation ? rangeLow  + rangeWidthPoints * 1.5  :
+                              rangeHigh - rangeWidthPoints * 1.5
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RANGE BOX VISUALIZATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+if i_showRangeBox and rangeActive and not na(rangeHigh) and not na(rangeLow) and barstate.islast
+    boxColor   = isAccumulation ? COLOR_ACC_BOX : COLOR_DIST_BOX
+    borderClr  = isAccumulation ? COLOR_ACC_BORDER : COLOR_DIST_BORDER
+
+    if not na(rangeBox)
+        box.delete(rangeBox)
+    rangeBox := box.new(
+         left          = bar_index - i_rangeLookback,
+         top           = rangeHigh,
+         right         = bar_index + 10,
+         bottom        = rangeLow,
+         bgcolor       = boxColor,
+         border_color  = borderClr,
+         border_width  = 2,
+         text          = "Range: " + str.tostring(math.round(rangeWidthPoints, 0)) + " pts",
+         text_color    = borderClr,
+         text_size     = size.small,
+         text_halign   = text.align_right,
+         text_valign   = text.align_top)
+
+// Equilibrium line (midpoint)
+equilibriumLevel = rangeActive and not na(rangeHigh) and not na(rangeLow) ?
+                   (rangeHigh + rangeLow) / 2.0 : na
+
+if i_showEquilibrium and rangeActive and barstate.islast and not na(equilibriumLevel)
+    if not na(equiLine)
+        line.delete(equiLine)
+    equiLine := line.new(
+         x1     = bar_index - i_rangeLookback,
+         y1     = equilibriumLevel,
+         x2     = bar_index + 20,
+         y2     = equilibriumLevel,
+         color  = COLOR_EQUILIBRIUM,
+         style  = line.style_dashed,
+         width  = 1)
+
+// Price target lines
+if i_showTargets and rangeActive and barstate.islast and rangeWidthPoints > 0
+    if not na(targetMinLine)
+        line.delete(targetMinLine)
+    if not na(targetMaxLine)
+        line.delete(targetMaxLine)
+    if not na(targetMinLbl)
+        label.delete(targetMinLbl)
+    if not na(targetMaxLbl)
+        label.delete(targetMaxLbl)
+
+    minColor = isAccumulation ? COLOR_TARGET_MIN : COLOR_DIST_MIN
+    maxColor = isAccumulation ? COLOR_TARGET_MAX : COLOR_DIST_MAX
+
+    targetMinLine := line.new(
+         x1     = bar_index,
+         y1     = targetMin,
+         x2     = bar_index + 50,
+         y2     = targetMin,
+         color  = minColor,
+         style  = line.style_dashed,
+         width  = 2)
+
+    targetMaxLine := line.new(
+         x1     = bar_index,
+         y1     = targetMax,
+         x2     = bar_index + 50,
+         y2     = targetMax,
+         color  = maxColor,
+         style  = line.style_dashed,
+         width  = 2)
+
+    targetMinLbl := label.new(
+         x       = bar_index + 50,
+         y       = targetMin,
+         text    = "Wyckoff Min: " + str.tostring(math.round(targetMin, 0)),
+         color   = minColor,
+         textcolor = color.white,
+         size    = size.small,
+         style   = label.style_label_left)
+
+    targetMaxLbl := label.new(
+         x       = bar_index + 50,
+         y       = targetMax,
+         text    = "Wyckoff Max: " + str.tostring(math.round(targetMax, 0)),
+         color   = maxColor,
+         textcolor = color.white,
+         size    = size.small,
+         style   = label.style_label_left)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMPOSITE MAN EVENT LABELS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Helper: place a label below/above a bar
+labelBelow(txt, clr, tip) =>
+    label.new(
+         x         = bar_index,
+         y         = low,
+         text      = txt,
+         color     = clr,
+         textcolor = color.black,
+         size      = size.small,
+         style     = label.style_label_up,
+         tooltip   = tip,
+         yloc      = yloc.belowbar)
+
+labelAbove(txt, clr, tip) =>
+    label.new(
+         x         = bar_index,
+         y         = high,
+         text      = txt,
+         color     = clr,
+         textcolor = color.black,
+         size      = size.small,
+         style     = label.style_label_down,
+         tooltip   = tip,
+         yloc      = yloc.abovebar)
+
+// Only draw labels on confirmed bars and if display is enabled
+if i_showLabels and barstate.isconfirmed
+
+    // Accumulation events
+    if isPsBar
+        labelBelow("PS", COLOR_LABEL_PS, "Preliminary Support — First demand appears in the downtrend. Not yet a buy signal.")
+
+    if isScBar
+        labelBelow("SC", COLOR_LABEL_SC, "Selling Climax — Institutional accumulation begins. Volume 3-5x average. Watch for Automatic Rally.")
+
+    if isArBar and not na(scLow)
+        labelAbove("AR", COLOR_LABEL_AR, "Automatic Rally — Short covering + institutional demand. AR high defines the top of the accumulation range.")
+
+    if isStBar
+        labelBelow("ST", COLOR_LABEL_ST, "Secondary Test — Tests SC area on lower volume. Bullish if holds above SC.")
+
+    if springDetected and bar_index == springBar
+        labelBelow("SPRING", COLOR_LABEL_SPRING, "Spring — Wyckoff Phase C. Engineered shakeout below range low. Low volume confirms institutional support. Test bar confirms entry.")
+
+    if lpsDetected and bar_index == lastEventBar
+        labelBelow("LPS", COLOR_LABEL_LPS, "Last Point of Support — Low-risk long entry after SOS. Low volume pullback holding above range top.")
+
+    if sosDetected and bar_index == sosBar
+        labelAbove("SOS", COLOR_LABEL_SOS, "Sign of Strength — Phase D begins. Breakout above range with volume. Phase E markup imminent.")
+
+    // Distribution events
+    if isPsyBar
+        labelAbove("PSY", COLOR_LABEL_PSY, "Preliminary Supply — First institutional selling into uptrend. Rally slowing on rising volume.")
+
+    if isBcBar
+        labelAbove("BC", COLOR_LABEL_BC, "Buying Climax — Institutional distribution into retail FOMO. Close in lower half on 3-5x volume = supply overwhelming demand.")
+
+    if utadDetected and bar_index == utadBar
+        labelAbove("UTAD", COLOR_LABEL_UTAD, "Upthrust After Distribution — Phase C trap. Breakout above BC high on high volume reverses. All breakout buyers trapped. Markdown imminent.")
+
+    if sowDetected and bar_index == sowBar
+        labelBelow("SOW", COLOR_LABEL_SOW, "Sign of Weakness — Phase D begins. Break below range low on volume. Phase E markdown imminent.")
+
+    if lpsyDetected and bar_index == lastEventBar
+        labelAbove("LPSY", COLOR_LABEL_LPSY, "Last Point of Supply — Low-risk short entry. Weak rally on low volume after SOW. Dead-cat bounce into resistance.")
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VOLUME SIGNAL VISUALIZATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Candle border highlighting via plotcandle is not available directly,
+// so we use plotshape/bgcolor for volume condition highlighting
+
+if i_showVolSignals and barstate.isconfirmed
+    // No Demand dots below bar
+    if isNoDemand
+        label.new(
+             x         = bar_index,
+             y         = low,
+             text      = "•",
+             color     = color.new(color.yellow, 0),
+             textcolor = color.yellow,
+             size      = size.tiny,
+             style     = label.style_none,
+             yloc      = yloc.belowbar)
+
+    // No Supply dots above bar
+    if isNoSupply
+        label.new(
+             x         = bar_index,
+             y         = high,
+             text      = "•",
+             color     = color.new(color.yellow, 0),
+             textcolor = color.yellow,
+             size      = size.tiny,
+             style     = label.style_none,
+             yloc      = yloc.abovebar)
+
+// Background highlights for key bar types
+bgcolor(i_showVolSignals and isAbsorption  ? color.new(COLOR_ABSORB,  92) : na, title = "Absorption Bar")
+bgcolor(i_showVolSignals and isScBar       ? color.new(COLOR_SC_BC,   88) : na, title = "SC/BC Bar")
+bgcolor(i_showVolSignals and isBcBar       ? color.new(COLOR_SC_BC,   88) : na, title = "BC Bar Highlight")
+bgcolor(i_showVolSignals and sosDetected and bar_index == sosBar ? color.new(COLOR_SOS_BAR, 85) : na, title = "SOS Bar")
+bgcolor(i_showVolSignals and sowDetected and bar_index == sowBar ? color.new(COLOR_SOW_BAR, 85) : na, title = "SOW Bar")
+
+// Spring zone highlight
+bgcolor(springDetected and bar_index == springBar ? COLOR_SPRING_FILL : na, title = "Spring Zone")
+bgcolor(utadDetected   and bar_index == utadBar   ? COLOR_UTAD_FILL   : na, title = "UTAD Zone")
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VOLUME HISTOGRAM OVERLAY (10-period MA)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Note: volume histogram is typically shown in a separate pane; since this is
+// overlay=true we show relative volume as a plot for reference
+relVol = volume / vol20
+plot(na, title = "Relative Volume Reference (scale: 1.0 = average)", display = display.none)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TUESDAY EXPIRY ALERT BACKGROUND
+// ═══════════════════════════════════════════════════════════════════════════════
+
+bgcolor(i_expiryBoost and isTuesdayExpiry() ? color.new(COLOR_EXPIRY, 96) : na,
+        title = "Tuesday Expiry Day")
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DASHBOARD TABLE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+if i_showDashboard and barstate.islast
+    tbl = table.new(
+         position        = position.bottom_right,
+         columns         = 2,
+         rows            = 11,
+         bgcolor         = color.new(color.black, 10),
+         border_color    = color.new(color.gray, 60),
+         border_width    = 1,
+         frame_color     = color.new(color.gray, 40),
+         frame_width     = 1)
+
+    // Header
+    table.cell(tbl, 0, 0, "WYCKOFF IPD",
+         text_color  = color.white,
+         text_size   = size.small,
+         bgcolor     = color.new(color.navy, 20),
+         text_halign = text.align_center)
+    table.cell(tbl, 1, 0, syminfo.ticker,
+         text_color  = color.yellow,
+         text_size   = size.small,
+         bgcolor     = color.new(color.navy, 20),
+         text_halign = text.align_center)
+
+    // Row 1: Phase
+    phaseColor = str.contains(currentPhase, "MARKUP")   ? color.green  :
+                 str.contains(currentPhase, "MARKDOWN") ? color.red    :
+                 str.contains(currentPhase, "PHASE C")  ? color.orange :
+                 str.contains(currentPhase, "PHASE D")  ? color.teal   : color.gray
+    table.cell(tbl, 0, 1, "Current Phase",
+         text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 1, 1, currentPhase,
+         text_color = phaseColor, text_size = size.small, text_halign = text.align_center)
+
+    // Row 2: Spring
+    springColor = springDetected ? color.green : color.gray
+    springTxt   = springDetected ? "YES ✓" : "NO"
+    table.cell(tbl, 0, 2, "Spring Detected",
+         text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 1, 2, springTxt,
+         text_color = springColor, text_size = size.small, text_halign = text.align_center)
+
+    // Row 3: UTAD
+    utadColor = utadDetected ? color.red : color.gray
+    utadTxt   = utadDetected ? "YES ✓" : "NO"
+    table.cell(tbl, 0, 3, "UTAD Detected",
+         text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 1, 3, utadTxt,
+         text_color = utadColor, text_size = size.small, text_halign = text.align_center)
+
+    // Row 4: Last Event
+    barsAgo    = not na(lastEventBar) ? str.tostring(bar_index - lastEventBar) + " bars ago" : "—"
+    table.cell(tbl, 0, 4, "Last Event",
+         text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 1, 4, lastEventName + " | " + barsAgo,
+         text_color = color.white, text_size = size.small, text_halign = text.align_center)
+
+    // Row 5: Range Width
+    rwTxt = rangeActive ? str.tostring(math.round(rangeWidthPoints, 0)) + " pts" : "No Range"
+    table.cell(tbl, 0, 5, "Range Width",
+         text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 1, 5, rwTxt,
+         text_color = color.white, text_size = size.small, text_halign = text.align_center)
+
+    // Row 6: Min Target
+    minTgtTxt = rangeActive and rangeWidthPoints > 0 ? str.tostring(math.round(targetMin, 0)) : "—"
+    minTgtClr = isAccumulation ? color.green : color.red
+    table.cell(tbl, 0, 6, "Min Target",
+         text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 1, 6, minTgtTxt,
+         text_color = minTgtClr, text_size = size.small, text_halign = text.align_center)
+
+    // Row 7: Max Target
+    maxTgtTxt = rangeActive and rangeWidthPoints > 0 ? str.tostring(math.round(targetMax, 0)) : "—"
+    table.cell(tbl, 0, 7, "Max Target",
+         text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 1, 7, maxTgtTxt,
+         text_color = minTgtClr, text_size = size.small, text_halign = text.align_center)
+
+    // Row 8: Volume Condition
+    vcColor = volCondition == "CLIMACTIC"  ? color.orange :
+              volCondition == "NO DEMAND"  ? color.yellow :
+              volCondition == "NO SUPPLY"  ? color.yellow : color.gray
+    table.cell(tbl, 0, 8, "Volume Condition",
+         text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 1, 8, volCondition,
+         text_color = vcColor, text_size = size.small, text_halign = text.align_center)
+
+    // Row 9: Expiry Day
+    expiryTxt   = isTuesdayExpiry() ? "YES — TUESDAY" :
+                  dayofweek == dayofweek.wednesday ? "YES — WEDNESDAY" : "NO"
+    expiryColor = isExpiryDay() ? color.orange : color.gray
+    table.cell(tbl, 0, 9, "Expiry Day",
+         text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 1, 9, expiryTxt,
+         text_color = expiryColor, text_size = size.small, text_halign = text.align_center)
+
+    // Row 10: Setup Quality
+    sqColor = setupQuality == "A+" ? color.lime  :
+              setupQuality == "A"  ? color.green :
+              setupQuality == "B"  ? color.yellow : color.gray
+    table.cell(tbl, 0, 10, "Setup Quality",
+         text_color = color.silver, text_size = size.small)
+    table.cell(tbl, 1, 10, setupQuality,
+         text_color = sqColor, text_size = size.small, text_halign = text.align_center,
+         bgcolor = sqColor == color.lime ? color.new(color.lime, 88) : color.new(color.black, 0))
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ALERT CONDITIONS — Pine Script v6 alertcondition()
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Spring Alert
+springAlert = i_alertSpring and springDetected and bar_index == springBar
+alertcondition(springAlert,
+     title   = "Wyckoff Spring Detected",
+     message = "🟢 Wyckoff Spring Detected on {{ticker}} — Long Setup | Phase C Complete | Wait for Test Bar Confirmation")
+
+// UTAD Alert
+utadAlert = i_alertUTAD and utadDetected and bar_index == utadBar
+alertcondition(utadAlert,
+     title   = "Wyckoff UTAD Detected",
+     message = "🔴 Wyckoff UTAD Detected on {{ticker}} — Short Setup | Phase C Distribution Complete | First bar below BC high = entry")
+
+// SOS Alert
+sosAlert = i_alertSOSSow and sosDetected and bar_index == sosBar
+alertcondition(sosAlert,
+     title   = "Wyckoff SOS Confirmed",
+     message = "✅ SOS Confirmed on {{ticker}} — Markup Beginning | Phase D Active | Watch for LPS pullback entry")
+
+// SOW Alert
+sowAlert = i_alertSOSSow and sowDetected and bar_index == sowBar
+alertcondition(sowAlert,
+     title   = "Wyckoff SOW Confirmed",
+     message = "⚠️ SOW Confirmed on {{ticker}} — Markdown Beginning | Phase D Distribution Active | Watch for LPSY entry")
+
+// LPS Alert
+lpsAlert = i_alertLPS and lpsDetected and bar_index == lastEventBar
+alertcondition(lpsAlert,
+     title   = "LPS Zone — Long Entry",
+     message = "📍 LPS Zone on {{ticker}} — Low Risk Long Entry | Low volume pullback after SOS | Stop below LPS low")
+
+// LPSY Alert
+lpsyAlert = i_alertLPS and lpsyDetected and bar_index == lastEventBar
+alertcondition(lpsyAlert,
+     title   = "LPSY Zone — Short Entry",
+     message = "📍 LPSY Zone on {{ticker}} — Low Risk Short Entry | Weak rally on low volume after SOW | Stop above LPSY high")
+
+// Tuesday Expiry Spring Alert
+tuesdaySpringAlert = i_alertExpiry and isTuesdayExpiry() and springDetected and bar_index == springBar
+alertcondition(tuesdaySpringAlert,
+     title   = "Tuesday Expiry Spring Alert",
+     message = "⚡ Tuesday Expiry Spring Alert on {{ticker}} — HIGH PROBABILITY SETUP | Operators engineering shakeout | Max pain mechanics aligning with Wyckoff spring | Enter after test bar confirmation")
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INLINE ALERT TRIGGERS (for real-time alert() calls alongside alertcondition)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+if springAlert
+    alert("🟢 Wyckoff Spring Detected on " + syminfo.ticker + " — Long Setup", alert.freq_once_per_bar_close)
+
+if utadAlert
+    alert("🔴 Wyckoff UTAD Detected on " + syminfo.ticker + " — Short Setup", alert.freq_once_per_bar_close)
+
+if sosAlert
+    alert("✅ SOS Confirmed — Markup Beginning on " + syminfo.ticker, alert.freq_once_per_bar_close)
+
+if sowAlert
+    alert("⚠️ SOW Confirmed — Markdown Beginning on " + syminfo.ticker, alert.freq_once_per_bar_close)
+
+if lpsAlert
+    alert("📍 LPS Zone — Low Risk Long Entry on " + syminfo.ticker, alert.freq_once_per_bar_close)
+
+if lpsyAlert
+    alert("📍 LPSY Zone — Low Risk Short Entry on " + syminfo.ticker, alert.freq_once_per_bar_close)
+
+if tuesdaySpringAlert
+    alert("⚡ Tuesday Expiry Spring Alert — High Probability Setup on " + syminfo.ticker, alert.freq_once_per_bar_close)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PLOT: Equilibrium Reference
+// ═══════════════════════════════════════════════════════════════════════════════
+
+plot(i_showEquilibrium and rangeActive ? equilibriumLevel : na,
+     title  = "Equilibrium (Range Midpoint)",
+     color  = COLOR_EQUILIBRIUM,
+     style  = plot.style_line,
+     linewidth = 1)
+
+// Plot range boundaries for reference
+plot(rangeActive ? rangeHigh : na,
+     title = "Range High", color = color.new(color.blue, 70), linewidth = 1)
+plot(rangeActive ? rangeLow  : na,
+     title = "Range Low",  color = color.new(color.blue, 70), linewidth = 1)

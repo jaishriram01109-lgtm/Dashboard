@@ -1,0 +1,239 @@
+// Wyckoff NSE Multi-Stock Scanner
+// Displays Wyckoff phase status for top Nifty 50 stocks in one table
+// Apply to any chart — scanner runs in the background via request.security()
+
+//@version=6
+indicator(title    = "Wyckoff NSE Scanner [Top 20 Nifty 50]",
+     shorttitle    = "Wyckoff-SCAN",
+     overlay       = false,
+     max_bars_back = 500)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INPUTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+var GRP_SCAN = "Scanner Settings"
+i_tf        = input.timeframe("D",   "Timeframe to Scan",    group = GRP_SCAN, tooltip = "D = Daily (best), W = Weekly, 60 = Hourly")
+i_lookback  = input.int(60,          "Range Lookback (bars)", minval = 20, maxval = 200, group = GRP_SCAN)
+i_volMult   = input.float(2.5,       "Climax Volume Mult",    minval = 1.5, maxval = 5.0, group = GRP_SCAN)
+
+var GRP_DISPLAY = "Display"
+i_showSetupOnly = input.bool(false, "Show Only Active Setups (A/A+)", group = GRP_DISPLAY)
+i_sortBy        = input.string("Phase", "Sort By", options = ["Phase", "Setup Quality", "Ticker"], group = GRP_DISPLAY)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SCANNER FUNCTION
+// Returns: [phase, springDone, utadDone, sosDone, setupScore, rWidth]
+// ═══════════════════════════════════════════════════════════════════════════════
+
+wyckoffScan(sym) =>
+    [_h, _l, _c, _o, _v] = request.security(sym, i_tf, [high, low, close, open, volume],
+                                              lookahead = barmerge.lookahead_off)
+
+    _vol20  = ta.sma(_v, 20)
+    _atr14  = ta.atr(14)[1]
+    _atr50  = ta.atr(50)[1]
+
+    _lbH    = ta.highest(_h, i_lookback)
+    _lbL    = ta.lowest(_l,  i_lookback)
+    _rW     = _lbH - _lbL
+
+    _isRng  = _atr14 < _atr50 * 1.4 and _rW < _atr50 * 15.0
+
+    // Simplified spring: price dipped below range low recently and recovered
+    _rLow   = ta.lowest(_l, i_lookback)
+    _springRecent = ta.lowest(_l, 5) < _rLow * 0.999 and _c > _rLow and
+                    ta.lowest(_v, 5) < _vol20 * 1.5
+
+    // UTAD: price pushed above range high recently and came back
+    _rHigh  = ta.highest(_h, i_lookback)
+    _utadRecent = ta.highest(_h, 5) > _rHigh * 1.001 and _c < _rHigh
+
+    // SOS: recent close above range high with volume
+    _sosRecent = _c > _rHigh and _v > _vol20 * 1.5
+
+    // SOW: recent close below range low with volume
+    _sowRecent = _c < _rLow and _v > _vol20 * 1.5
+
+    // Volume state
+    _climax  = _v > _vol20 * i_volMult
+    _noSupply = _c < _c[1] and _v < _v[1] and _v < _v[2] and
+                (_h - _l) < _atr14 * 0.7 and (_h - _l) > 0 and (_c - _l) / (_h - _l) > 0.4
+    _noDemand = _c > _c[1] and _v < _v[1] and _v < _v[2] and
+                (_h - _l) < _atr14 * 0.7 and (_h - _l) > 0 and (_c - _l) / (_h - _l) < 0.55
+
+    // Phase string
+    _phase = _sosRecent ? "PHASE D — MARKUP" :
+             _sowRecent ? "PHASE D — MARKDOWN" :
+             _springRecent ? "PHASE C — SPRING" :
+             _utadRecent   ? "PHASE C — UTAD" :
+             _isRng        ? "PHASE A/B" : "TRENDING"
+
+    // Quality score
+    _q = 0
+    if _springRecent
+        _q := _q + 3
+    if _utadRecent
+        _q := _q + 3
+    if _noSupply and _springRecent
+        _q := _q + 2
+    if _noDemand and _utadRecent
+        _q := _q + 2
+    if _sosRecent or _sowRecent
+        _q := _q + 1
+
+    _sqStr = _q >= 5 ? "A+" : _q >= 3 ? "A" : _q >= 1 ? "B" : "—"
+
+    [_phase, _springRecent, _utadRecent, _sosRecent, _sowRecent, _sqStr, _rW, _c, _climax, _noSupply, _noDemand]
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SCAN ALL SYMBOLS — TOP 20 NIFTY 50 BY MARKET CAP
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Nifty 50 top 20 constituents by weight (2024)
+[p1,  sp1,  ut1,  sos1,  sow1,  sq1,  rw1,  cl1,  clx1,  ns1,  nd1]  = wyckoffScan("NSE:RELIANCE")
+[p2,  sp2,  ut2,  sos2,  sow2,  sq2,  rw2,  cl2,  clx2,  ns2,  nd2]  = wyckoffScan("NSE:HDFCBANK")
+[p3,  sp3,  ut3,  sos3,  sow3,  sq3,  rw3,  cl3,  clx3,  ns3,  nd3]  = wyckoffScan("NSE:ICICIBANK")
+[p4,  sp4,  ut4,  sos4,  sow4,  sq4,  rw4,  cl4,  clx4,  ns4,  nd4]  = wyckoffScan("NSE:INFY")
+[p5,  sp5,  ut5,  sos5,  sow5,  sq5,  rw5,  cl5,  clx5,  ns5,  nd5]  = wyckoffScan("NSE:TCS")
+[p6,  sp6,  ut6,  sos6,  sow6,  sq6,  rw6,  cl6,  clx6,  ns6,  nd6]  = wyckoffScan("NSE:BHARTIARTL")
+[p7,  sp7,  ut7,  sos7,  sow7,  sq7,  rw7,  cl7,  clx7,  ns7,  nd7]  = wyckoffScan("NSE:KOTAKBANK")
+[p8,  sp8,  ut8,  sos8,  sow8,  sq8,  rw8,  cl8,  clx8,  ns8,  nd8]  = wyckoffScan("NSE:SBIN")
+[p9,  sp9,  ut9,  sos9,  sow9,  sq9,  rw9,  cl9,  clx9,  ns9,  nd9]  = wyckoffScan("NSE:LT")
+[p10, sp10, ut10, sos10, sow10, sq10, rw10, cl10, clx10, ns10, nd10] = wyckoffScan("NSE:HINDUNILVR")
+[p11, sp11, ut11, sos11, sow11, sq11, rw11, cl11, clx11, ns11, nd11] = wyckoffScan("NSE:AXISBANK")
+[p12, sp12, ut12, sos12, sow12, sq12, rw12, cl12, clx12, ns12, nd12] = wyckoffScan("NSE:BAJFINANCE")
+[p13, sp13, ut13, sos13, sow13, sq13, rw13, cl13, clx13, ns13, nd13] = wyckoffScan("NSE:TITAN")
+[p14, sp14, ut14, sos14, sow14, sq14, rw14, cl14, clx14, ns14, nd14] = wyckoffScan("NSE:WIPRO")
+[p15, sp15, ut15, sos15, sow15, sq15, rw15, cl15, clx15, ns15, nd15] = wyckoffScan("NSE:SUNPHARMA")
+[p16, sp16, ut16, sos16, sow16, sq16, rw16, cl16, clx16, ns16, nd16] = wyckoffScan("NSE:MARUTI")
+[p17, sp17, ut17, sos17, sow17, sq17, rw17, cl17, clx17, ns17, nd17] = wyckoffScan("NSE:POWERGRID")
+[p18, sp18, ut18, sos18, sow18, sq18, rw18, cl18, clx18, ns18, nd18] = wyckoffScan("NSE:NTPC")
+[p19, sp19, ut19, sos19, sow19, sq19, rw19, cl19, clx19, ns19, nd19] = wyckoffScan("NSE:ULTRACEMCO")
+[p20, sp20, ut20, sos20, sow20, sq20, rw20, cl20, clx20, ns20, nd20] = wyckoffScan("NSE:TATAMOTORS")
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SCANNER TABLE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+phaseColor(ph) =>
+    str.contains(ph, "MARKUP")  ? color.lime :
+    str.contains(ph, "MARKDOWN") ? color.red  :
+    str.contains(ph, "SPRING")   ? color.new(#00ff88, 0) :
+    str.contains(ph, "UTAD")     ? color.new(#ff4444, 0) :
+    str.contains(ph, "PHASE D")  ? color.teal :
+    str.contains(ph, "PHASE A")  ? color.new(color.blue, 30) : color.gray
+
+qualColor(sq) =>
+    sq == "A+" ? color.lime : sq == "A" ? color.green : sq == "B" ? color.yellow : color.gray
+
+evtStr(sp, ut, sos, sow, ns, nd) =>
+    sp  ? "🟢 SPRING"  :
+    ut  ? "🔴 UTAD"    :
+    sos ? "✅ SOS"     :
+    sow ? "⚠️ SOW"    :
+    ns  ? "◆ NO SUPP" :
+    nd  ? "◇ NO DEM"  : "—"
+
+if barstate.islast
+    cols = 6
+    rows = 22  // header + 20 stocks + separator
+
+    t = table.new(position.middle_center, cols, rows,
+                  bgcolor      = color.new(color.black, 5),
+                  border_color = color.new(color.gray, 70),
+                  border_width = 1,
+                  frame_color  = color.new(color.gray, 50),
+                  frame_width  = 2)
+
+    // Column headers
+    table.cell(t, 0, 0, "STOCK",      text_color = color.white, text_size = size.small,
+               bgcolor = color.new(color.navy, 20), text_halign = text.align_center)
+    table.cell(t, 1, 0, "PRICE",      text_color = color.white, text_size = size.small,
+               bgcolor = color.new(color.navy, 20), text_halign = text.align_center)
+    table.cell(t, 2, 0, "PHASE",      text_color = color.white, text_size = size.small,
+               bgcolor = color.new(color.navy, 20), text_halign = text.align_center)
+    table.cell(t, 3, 0, "EVENT",      text_color = color.white, text_size = size.small,
+               bgcolor = color.new(color.navy, 20), text_halign = text.align_center)
+    table.cell(t, 4, 0, "RANGE (pts)",text_color = color.white, text_size = size.small,
+               bgcolor = color.new(color.navy, 20), text_halign = text.align_center)
+    table.cell(t, 5, 0, "QUALITY",   text_color = color.white, text_size = size.small,
+               bgcolor = color.new(color.navy, 20), text_halign = text.align_center)
+
+    // Separator
+    table.cell(t, 0, 1, "─ Nifty 50 Top 20 ─", text_color = color.gray, text_size = size.tiny,
+               text_halign = text.align_center)
+    table.cell(t, 1, 1, "TF: " + i_tf, text_color = color.gray, text_size = size.tiny, text_halign = text.align_center)
+    table.cell(t, 2, 1, "", text_color = color.gray, text_size = size.tiny)
+    table.cell(t, 3, 1, "", text_color = color.gray, text_size = size.tiny)
+    table.cell(t, 4, 1, "", text_color = color.gray, text_size = size.tiny)
+    table.cell(t, 5, 1, "", text_color = color.gray, text_size = size.tiny)
+
+    // Data rows — arrays for the 20 stocks
+    tickers  = array.from("RELIANCE","HDFCBANK","ICICIBANK","INFY","TCS","BHARTIARTL","KOTAKBANK","SBIN","LT","HINDUNILVR","AXISBANK","BAJFINANCE","TITAN","WIPRO","SUNPHARMA","MARUTI","POWERGRID","NTPC","ULTRACEMCO","TATAMOTORS")
+    phases   = array.from(p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,p17,p18,p19,p20)
+    springs  = array.from(sp1,sp2,sp3,sp4,sp5,sp6,sp7,sp8,sp9,sp10,sp11,sp12,sp13,sp14,sp15,sp16,sp17,sp18,sp19,sp20)
+    utads    = array.from(ut1,ut2,ut3,ut4,ut5,ut6,ut7,ut8,ut9,ut10,ut11,ut12,ut13,ut14,ut15,ut16,ut17,ut18,ut19,ut20)
+    soss     = array.from(sos1,sos2,sos3,sos4,sos5,sos6,sos7,sos8,sos9,sos10,sos11,sos12,sos13,sos14,sos15,sos16,sos17,sos18,sos19,sos20)
+    sows     = array.from(sow1,sow2,sow3,sow4,sow5,sow6,sow7,sow8,sow9,sow10,sow11,sow12,sow13,sow14,sow15,sow16,sow17,sow18,sow19,sow20)
+    squals   = array.from(sq1,sq2,sq3,sq4,sq5,sq6,sq7,sq8,sq9,sq10,sq11,sq12,sq13,sq14,sq15,sq16,sq17,sq18,sq19,sq20)
+    rwidths  = array.from(rw1,rw2,rw3,rw4,rw5,rw6,rw7,rw8,rw9,rw10,rw11,rw12,rw13,rw14,rw15,rw16,rw17,rw18,rw19,rw20)
+    prices   = array.from(cl1,cl2,cl3,cl4,cl5,cl6,cl7,cl8,cl9,cl10,cl11,cl12,cl13,cl14,cl15,cl16,cl17,cl18,cl19,cl20)
+    nsupps   = array.from(ns1,ns2,ns3,ns4,ns5,ns6,ns7,ns8,ns9,ns10,ns11,ns12,ns13,ns14,ns15,ns16,ns17,ns18,ns19,ns20)
+    ndems    = array.from(nd1,nd2,nd3,nd4,nd5,nd6,nd7,nd8,nd9,nd10,nd11,nd12,nd13,nd14,nd15,nd16,nd17,nd18,nd19,nd20)
+
+    for i = 0 to 19
+        row     = i + 2
+        ticker  = array.get(tickers,  i)
+        ph      = array.get(phases,   i)
+        sp      = array.get(springs,  i)
+        ut      = array.get(utads,    i)
+        sos_    = array.get(soss,     i)
+        sow_    = array.get(sows,     i)
+        sq      = array.get(squals,   i)
+        rw      = array.get(rwidths,  i)
+        pr      = array.get(prices,   i)
+        ns_     = array.get(nsupps,   i)
+        nd_     = array.get(ndems,    i)
+
+        showRow = not i_showSetupOnly or sq == "A+" or sq == "A"
+        rowBg   = sp or ut ? color.new(color.navy, 80) : color.new(color.black, 0)
+
+        if showRow
+            table.cell(t, 0, row, ticker,
+                       text_color = sp ? color.lime : ut ? color.red : color.white,
+                       text_size = size.small, bgcolor = rowBg, text_halign = text.align_center)
+            table.cell(t, 1, row, str.tostring(math.round(pr, 1)),
+                       text_color = color.white, text_size = size.small, text_halign = text.align_right)
+            table.cell(t, 2, row, ph,
+                       text_color = phaseColor(ph), text_size = size.tiny, text_halign = text.align_center)
+            table.cell(t, 3, row, evtStr(sp, ut, sos_, sow_, ns_, nd_),
+                       text_color = sp ? color.lime : ut ? color.red : sos_ ? color.green : color.gray,
+                       text_size = size.small, text_halign = text.align_center)
+            table.cell(t, 4, row, str.tostring(math.round(rw, 1)),
+                       text_color = color.gray, text_size = size.small, text_halign = text.align_right)
+            table.cell(t, 5, row, sq,
+                       text_color = qualColor(sq), text_size = size.small, text_halign = text.align_center,
+                       bgcolor = sq == "A+" ? color.new(color.lime, 88) : color.new(color.black, 0))
+
+// Dummy plot so Pine doesn't complain about no output
+plot(close, display = display.none)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SCANNER ALERTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Alerts for individual stocks — fire when any top-20 stock shows a Spring
+alertcondition(sp1  or sp2  or sp3  or sp4  or sp5  or
+               sp6  or sp7  or sp8  or sp9  or sp10 or
+               sp11 or sp12 or sp13 or sp14 or sp15 or
+               sp16 or sp17 or sp18 or sp19 or sp20,
+     title = "Nifty 50 Stock Spring Detected",
+     message = "🟢 Wyckoff Spring detected in Nifty 50 top-20 watchlist — check scanner table for which stock")
+
+alertcondition(ut1  or ut2  or ut3  or ut4  or ut5  or
+               ut6  or ut7  or ut8  or ut9  or ut10 or
+               ut11 or ut12 or ut13 or ut14 or ut15 or
+               ut16 or ut17 or ut18 or ut19 or ut20,
+     title = "Nifty 50 Stock UTAD Detected",
+     message = "🔴 Wyckoff UTAD detected in Nifty 50 top-20 watchlist — check scanner table for which stock")
